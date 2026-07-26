@@ -99,6 +99,12 @@ class AgentRuntimeResultStoreTest {
                 ok = true,
                 content = "完成",
                 transcript = transcript,
+                metrics = AgentRunMetrics(
+                    inputTokens = 240,
+                    cachedInputTokens = 180,
+                    outputTokens = 36,
+                    elapsedMs = 5_400,
+                ),
             ),
             createdAt = System.currentTimeMillis(),
         )
@@ -109,5 +115,6 @@ class AgentRuntimeResultStoreTest {
         assertEquals(transcript.map { it.role }, restored.result.transcript.map { it.role })
         assertEquals("call-1", restored.result.transcript[1].toolCallId)
         assertEquals("完成", restored.result.transcript.last().content)
+        assertEquals(completedRun.result.metrics, restored.result.metrics)
     }
 }

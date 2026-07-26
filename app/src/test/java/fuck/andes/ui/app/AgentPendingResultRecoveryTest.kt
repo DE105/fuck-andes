@@ -1,6 +1,7 @@
 package fuck.andes.ui.app
 
 import fuck.andes.agent.model.AgentModelClient
+import fuck.andes.agent.runtime.AgentRunMetrics
 import fuck.andes.agent.runtime.AgentRuntimeWire
 import fuck.andes.agent.runtime.AgentUiHandoffPayload
 import fuck.andes.ui.model.AgentChatUiState
@@ -45,6 +46,12 @@ class AgentPendingResultRecoveryTest {
             ok = true,
             content = "最终结果",
             transcript = transcript,
+            metrics = AgentRunMetrics(
+                inputTokens = 240,
+                cachedInputTokens = 180,
+                outputTokens = 36,
+                elapsedMs = 5_400,
+            ),
         )
 
         val recovered = AgentPendingResultRecovery.apply(
@@ -67,6 +74,10 @@ class AgentPendingResultRecoveryTest {
         assertEquals("最终结果", latest.content)
         assertFalse(latest.isStreaming)
         assertTrue(latest.renderMarkdown)
+        assertEquals(240, latest.runMetrics?.inputTokens)
+        assertEquals(180, latest.runMetrics?.cachedInputTokens)
+        assertEquals(36, latest.runMetrics?.outputTokens)
+        assertEquals(5_400L, latest.runMetrics?.elapsedMs)
         assertEquals(transcript, recovered.state.history)
         assertFalse(recovered.state.isStreaming)
 

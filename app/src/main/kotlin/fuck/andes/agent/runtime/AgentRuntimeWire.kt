@@ -101,6 +101,7 @@ internal object AgentRuntimeWire {
     private const val KEY_ERROR = "error"
     private const val KEY_RESULT = "result"
     private const val KEY_TRANSCRIPT_JSON = "transcript_json"
+    private const val KEY_RUN_METRICS = "run_metrics"
     private const val KEY_HANDOFF = "handoff"
     private const val KEY_HANDOFF_ID = "handoff_id"
     private const val KEY_HANDOFF_SOURCE = "handoff_source"
@@ -159,6 +160,7 @@ internal object AgentRuntimeWire {
         val error: String? = null,
         val reasoningContent: String = "",
         val transcript: List<AgentModelClient.ConversationMessage> = emptyList(),
+        val metrics: AgentRunMetrics? = null,
     )
 
     data class EntryHandoff(
@@ -425,6 +427,7 @@ internal object AgentRuntimeWire {
                 AgentConversationCodec.encodeTranscriptForIpc(transcript)
             },
         )
+        metrics?.let { putBundle(KEY_RUN_METRICS, runMetricsToBundle(it)) }
     }
 
     fun runResultFromBundle(bundle: Bundle): RunResult =
@@ -435,7 +438,23 @@ internal object AgentRuntimeWire {
             error = bundle.getString(KEY_ERROR),
             reasoningContent = bundle.getString(KEY_REASONING_CONTENT).orEmpty(),
             transcript = AgentConversationCodec.decodeTranscript(bundle.getString(KEY_TRANSCRIPT_JSON)),
+            metrics = bundle.getBundle(KEY_RUN_METRICS)?.let(::runMetricsFromBundle),
         )
+
+    private fun runMetricsToBundle(metrics: AgentRunMetrics): Bundle = Bundle().apply {
+        metrics.inputTokens?.let { putInt("input_tokens", it) }
+        metrics.cachedInputTokens?.let { putInt("cached_input_tokens", it) }
+        metrics.outputTokens?.let { putInt("output_tokens", it) }
+        metrics.elapsedMs?.let { putLong("elapsed_ms", it) }
+    }
+
+    private fun runMetricsFromBundle(bundle: Bundle): AgentRunMetrics? =
+        AgentRunMetrics(
+            inputTokens = bundle.optionalInt("input_tokens"),
+            cachedInputTokens = bundle.optionalInt("cached_input_tokens"),
+            outputTokens = bundle.optionalInt("output_tokens"),
+            elapsedMs = bundle.optionalLong("elapsed_ms"),
+        ).takeUnless { it.isEmpty }
 
     fun toBundle(completedRun: CompletedRun): Bundle = completedRun.toBundle(compactForDrain = false)
 
@@ -710,6 +729,9 @@ internal object AgentRuntimeWire {
 
     private fun Bundle.optionalInt(key: String): Int? =
         if (containsKey(key)) getInt(key) else null
+
+    private fun Bundle.optionalLong(key: String): Long? =
+        if (containsKey(key)) getLong(key) else null
 
     private fun Bundle.putTokenUsage(usage: AgentTokenUsage) {
         usage.contextTokens?.let { putInt("usage_context", it) }

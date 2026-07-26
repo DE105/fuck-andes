@@ -2,6 +2,7 @@ package fuck.andes.ui.model
 
 import androidx.compose.runtime.Immutable
 import fuck.andes.agent.model.AgentModelClient
+import fuck.andes.agent.runtime.AgentRunMetrics
 
 @Immutable
 internal data class AgentChatUiState(
@@ -33,7 +34,30 @@ data class AgentMessageUi(
     val isStreaming: Boolean = false,
     val renderMarkdown: Boolean = true,
     val usage: TokenUsageUi? = null,
+    val runMetrics: AgentRunMetricsUi? = null,
 ) : AgentChatMessageUi
+
+@Immutable
+data class AgentRunMetricsUi(
+    val inputTokens: Int? = null,
+    val cachedInputTokens: Int? = null,
+    val outputTokens: Int? = null,
+    val elapsedMs: Long? = null,
+) {
+    val isEmpty: Boolean
+        get() = inputTokens == null &&
+            cachedInputTokens == null &&
+            outputTokens == null &&
+            elapsedMs == null
+}
+
+internal fun AgentRunMetrics.toRunMetricsUi(): AgentRunMetricsUi =
+    AgentRunMetricsUi(
+        inputTokens = inputTokens,
+        cachedInputTokens = cachedInputTokens,
+        outputTokens = outputTokens,
+        elapsedMs = elapsedMs,
+    )
 
 @Immutable
 data class TokenUsageUi(

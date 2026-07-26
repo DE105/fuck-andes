@@ -166,6 +166,39 @@ class OpenAiChatCompletionsProviderTest {
     }
 
     @Test
+    fun completeParsesOpenAiCompatibleCacheAliases() {
+        val aliases = listOf(
+            "cached_tokens",
+            "cached_input_tokens",
+            "cache_read_input_tokens",
+            "prompt_cache_hit_tokens",
+        )
+
+        aliases.forEach { cacheKey ->
+            val usage = JSONObject()
+                .put("prompt_tokens", 10)
+                .put("completion_tokens", 2)
+                .put(cacheKey, 7)
+            val body = usageChunk(usage) + "data: [DONE]\n\n"
+
+            withSseServer(body) { baseUrl ->
+                val events = mutableListOf<ProviderEvent>()
+                OpenAiChatCompletionsProvider.complete(
+                    request = providerRequest(baseUrl),
+                    runController = AgentRunController(),
+                    onEvent = events::add,
+                )
+
+                assertEquals(
+                    "$cacheKey should be treated as cached input",
+                    7,
+                    events.filterIsInstance<ProviderEvent.Usage>().single().usage.cachedTokens,
+                )
+            }
+        }
+    }
+
+    @Test
     fun completeRejectsStreamThatEndsBeforeDone() {
         val body = sseChunk(JSONObject().put("content", "partial"))
 

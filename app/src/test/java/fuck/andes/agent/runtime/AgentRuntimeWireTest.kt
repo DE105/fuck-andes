@@ -396,6 +396,12 @@ class AgentRuntimeWireTest {
                     reasoningContent = "先分析问题，再调用工具，最后总结。",
                 )
             ),
+            metrics = AgentRunMetrics(
+                inputTokens = 1_200,
+                cachedInputTokens = 900,
+                outputTokens = 320,
+                elapsedMs = 12_345,
+            ),
         )
 
         val roundTripped = AgentRuntimeWire.runResultFromBundle(AgentRuntimeWire.toBundle(result))

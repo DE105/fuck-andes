@@ -7,6 +7,7 @@ import fuck.andes.ui.model.AgentChatHomeUiState
 import fuck.andes.ui.model.AgentChatMessageUi
 import fuck.andes.ui.model.AgentMessageUi
 import fuck.andes.ui.model.UserMessageUi
+import fuck.andes.ui.model.toRunMetricsUi
 
 /** 将 Runtime outbox 的结果幂等折叠回 App 会话。 */
 internal object AgentPendingResultRecovery {
@@ -48,12 +49,14 @@ internal object AgentPendingResultRecovery {
                 content = content,
                 isStreaming = false,
                 renderMarkdown = result.ok,
+                runMetrics = result.metrics?.toRunMetricsUi(),
             )
             if (assistantIndex >= 0) {
                 messages[assistantIndex] = (messages[assistantIndex] as AgentMessageUi).copy(
                     content = content,
                     isStreaming = false,
                     renderMarkdown = result.ok,
+                    runMetrics = result.metrics?.toRunMetricsUi(),
                 )
             } else {
                 messages += completedMessage

@@ -19,7 +19,7 @@ import androidx.room.migration.Migration
         RuntimeArchiveEventEntity::class,
         SkillRegistryEntity::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = false,
 )
 internal abstract class FuckAndesDatabase : RoomDatabase() {
@@ -39,7 +39,12 @@ internal abstract class FuckAndesDatabase : RoomDatabase() {
                     FuckAndesDatabase::class.java,
                     "fuck_andes.db",
                 )
-                    .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                    .addMigrations(
+                        MIGRATION_6_7,
+                        MIGRATION_7_8,
+                        MIGRATION_8_9,
+                        MIGRATION_9_10,
+                    )
                     .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                     .also { instance = it }
@@ -92,6 +97,19 @@ internal abstract class FuckAndesDatabase : RoomDatabase() {
                 "DELETE FROM conversation_state WHERE selected_conversation_id NOT IN " +
                     "(SELECT id FROM conversations)"
             )
+        }
+
+        internal val MIGRATION_9_10 = Migration(9, 10) { database ->
+            listOf(
+                "conversation_messages",
+                "runtime_results",
+                "runtime_archive_runs",
+            ).forEach { table ->
+                database.execSQL("ALTER TABLE $table ADD COLUMN run_input_tokens INTEGER")
+                database.execSQL("ALTER TABLE $table ADD COLUMN run_cached_input_tokens INTEGER")
+                database.execSQL("ALTER TABLE $table ADD COLUMN run_output_tokens INTEGER")
+                database.execSQL("ALTER TABLE $table ADD COLUMN run_elapsed_ms INTEGER")
+            }
         }
     }
 }

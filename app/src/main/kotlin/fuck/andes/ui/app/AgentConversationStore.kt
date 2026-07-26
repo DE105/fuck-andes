@@ -9,6 +9,7 @@ import fuck.andes.data.db.FuckAndesDatabase
 import fuck.andes.ui.model.AgentChatHomeUiState
 import fuck.andes.ui.model.AgentChatMessageUi
 import fuck.andes.ui.model.AgentMessageUi
+import fuck.andes.ui.model.AgentRunMetricsUi
 import fuck.andes.ui.model.ThinkingMessageUi
 import fuck.andes.ui.model.TokenUsageUi
 import fuck.andes.ui.model.ToolActivityMessageUi
@@ -171,6 +172,10 @@ internal object AgentConversationStore {
                         outputTokens = usage?.outputTokens,
                         reasoningTokens = usage?.reasoningTokens,
                         cachedTokens = usage?.cachedTokens,
+                        runInputTokens = runMetrics?.inputTokens,
+                        runCachedInputTokens = runMetrics?.cachedInputTokens,
+                        runOutputTokens = runMetrics?.outputTokens,
+                        runElapsedMs = runMetrics?.elapsedMs,
                     )
                 }
             }
@@ -228,6 +233,12 @@ internal object AgentConversationStore {
                     outputTokens = outputTokens,
                     reasoningTokens = reasoningTokens,
                     cachedTokens = cachedTokens,
+                ).takeUnless { it.isEmpty },
+                runMetrics = AgentRunMetricsUi(
+                    inputTokens = runInputTokens,
+                    cachedInputTokens = runCachedInputTokens,
+                    outputTokens = runOutputTokens,
+                    elapsedMs = runElapsedMs,
                 ).takeUnless { it.isEmpty },
             )
 

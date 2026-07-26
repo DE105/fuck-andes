@@ -102,6 +102,10 @@ internal object AgentRuntimeResultStore {
             error = result.error,
             reasoningContent = result.reasoningContent,
             transcriptJson = AgentConversationCodec.encodeTranscriptForStorage(result.transcript),
+            runInputTokens = result.metrics?.inputTokens,
+            runCachedInputTokens = result.metrics?.cachedInputTokens,
+            runOutputTokens = result.metrics?.outputTokens,
+            runElapsedMs = result.metrics?.elapsedMs,
             createdAt = createdAt,
         )
     }
@@ -126,6 +130,12 @@ internal object AgentRuntimeResultStore {
                     content = content,
                     reasoningContent = reasoningContent,
                 ),
+                metrics = AgentRunMetrics(
+                    inputTokens = runInputTokens,
+                    cachedInputTokens = runCachedInputTokens,
+                    outputTokens = runOutputTokens,
+                    elapsedMs = runElapsedMs,
+                ).takeUnless { it.isEmpty },
             ),
             createdAt = createdAt,
         )

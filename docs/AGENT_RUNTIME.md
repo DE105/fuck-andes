@@ -62,6 +62,17 @@ pending steering
 
 状态机语义研究参考了 MIT 许可的 [earendil-works/pi（研究时固定提交）](https://github.com/earendil-works/pi/tree/4c1861033b63a04563547ccdb5ed2bf31d4fdcd3)，Eta 按 Android Runtime、既有 IPC 和 Provider 协议做 Kotlin clean rewrite，没有直接引入其 TypeScript 运行时。
 
+## 单次运行统计
+
+一次 Agent run 的统计覆盖整个 Loop，而不是只记录第一轮模型请求。每个模型回合的 usage 会先在本回合内合并，再在不同回合之间累加，因此工具调用前后的模型请求都会进入同一份结果。
+
+- OpenAI-compatible 使用服务端返回的 `prompt_tokens`、`completion_tokens` 和缓存字段；兼容源常见的缓存字段别名也会被识别。
+- Anthropic 的输入 Token 按 `input_tokens + cache_read_input_tokens + cache_creation_input_tokens` 计算。界面中的缓存输入 Token 只表示 `cache_read_input_tokens`，它是输入 Token 的子集。
+- 思考内容和工具调用不单独显示 Token；它们按 Provider 返回的 output usage 口径计入输出 Token。
+- 耗时从首个 Assistant block 开始（通常是首次思考、文本或工具输出）计算，到 `RunFinished` 或 `RunFailed` 结束，所以包含中间的工具执行和等待时间。
+- 同一轮可能收到多个 usage 快照，例如 Anthropic 的 `message_start` 和 `message_delta`。这些快照不会重复相加，而是合并已知字段；不同模型回合才会相加。
+- Provider 没有返回某项 usage 时，该项保持未知并在界面显示 `--`，不会用 0 猜测。统计结果会随最终消息保存，也会经过 Runtime outbox、归档和会话恢复链路。
+
 ## 上下文与续接
 
 App 在发起请求前已经把当前用户消息写入会话 history，因此 Runtime 返回的 transcript 必须保持“增量”语义。已完成 run 的补充请求由 `AgentContinuationBuilder` 使用以下顺序重建上下文：

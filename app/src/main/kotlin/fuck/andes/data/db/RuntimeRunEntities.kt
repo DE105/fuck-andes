@@ -20,6 +20,10 @@ internal data class RuntimeResultEntity(
     val error: String?,
     @ColumnInfo(name = "reasoning_content") val reasoningContent: String,
     @ColumnInfo(name = "transcript_json") val transcriptJson: String,
+    @ColumnInfo(name = "run_input_tokens") val runInputTokens: Int? = null,
+    @ColumnInfo(name = "run_cached_input_tokens") val runCachedInputTokens: Int? = null,
+    @ColumnInfo(name = "run_output_tokens") val runOutputTokens: Int? = null,
+    @ColumnInfo(name = "run_elapsed_ms") val runElapsedMs: Long? = null,
     @ColumnInfo(name = "created_at") val createdAt: Long,
 )
 
@@ -36,6 +40,10 @@ internal data class RuntimeArchiveRunEntity(
     val error: String?,
     @ColumnInfo(name = "reasoning_content") val reasoningContent: String,
     @ColumnInfo(name = "transcript_json") val transcriptJson: String,
+    @ColumnInfo(name = "run_input_tokens") val runInputTokens: Int? = null,
+    @ColumnInfo(name = "run_cached_input_tokens") val runCachedInputTokens: Int? = null,
+    @ColumnInfo(name = "run_output_tokens") val runOutputTokens: Int? = null,
+    @ColumnInfo(name = "run_elapsed_ms") val runElapsedMs: Long? = null,
     @ColumnInfo(name = "created_at") val createdAt: Long,
 )
 

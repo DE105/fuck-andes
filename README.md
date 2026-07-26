@@ -138,6 +138,7 @@ Agent 的能力取决于你用什么模型。
 - **自定义提供商**：自定义 Base URL、API Key、请求头、body JSON
 - **模型管理**：内置官方目录、远程拉取列表、自定义模型、启停管理；新增项仅在确认保存后入库，远程同步只更新远程来源，不删除手工模型
 - **会话历史**：新会话先作为本地草稿存在，发送第一条消息后才进入历史列表
+- **单次运行统计**：一次 Agent 任务结束后，最终回答下方会显示输入 Token、缓存输入 Token、输出 Token 和耗时。任务中多次调用模型（包括工具调用前后）会合并计算；接口没有返回某项 usage 时，该项显示为 `--`。
 
 BYOK（Bring Your Own Key）意味着 Agent 能力跟随你选择的模型，而不是被内置供应限制。
 
@@ -154,6 +155,17 @@ BYOK（Bring Your Own Key）意味着 Agent 能力跟随你选择的模型，而
 6. 按需开启小布接管、敏感信息读取、敏感设备操作和终端/文件工具；需要 Python、Git 等通用命令时，再从设置中主动安装 Linux 工具环境
 
 </details>
+
+## 开发与验证
+
+项目使用 Java 25、Android SDK 37。完成环境配置后，可以在项目根目录运行：
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest
+.\gradlew.bat :app:assembleDebug
+```
+
+Linux 或 macOS 使用 `./gradlew`。Debug APK 会生成在 `app/build/outputs/apk/debug/`，构建产物不需要提交到 Git。
 
 ## 当前限制
 

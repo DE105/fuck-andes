@@ -81,6 +81,12 @@ class AgentRunArchiveStoreTest {
                         content = "系统状态正常",
                     )
                 ),
+                metrics = AgentRunMetrics(
+                    inputTokens = 400,
+                    cachedInputTokens = 250,
+                    outputTokens = 80,
+                    elapsedMs = 8_750,
+                ),
             ),
             createdAt = createdAt,
         )

@@ -100,6 +100,7 @@ import com.mikepenz.markdown.model.State as MarkdownRenderState
 import com.mikepenz.markdown.utils.getUnescapedTextInNode
 import fuck.andes.ui.model.AgentChatMessageUi
 import fuck.andes.ui.model.AgentMessageUi
+import fuck.andes.ui.model.AgentRunMetricsUi
 import fuck.andes.ui.model.RunTraceMessageUi
 import fuck.andes.ui.model.SuggestionChipsMessageUi
 import fuck.andes.ui.model.ThinkingMessageUi
@@ -451,11 +452,17 @@ private fun AgentMessageBlock(
             }
         }
 
-        if (
-            !message.isStreaming &&
-            message.content.isNotBlank() &&
-            (!keepStreamingMarkdown || streamingRevealComplete)
-        ) {
+        val presentationComplete =
+            !message.isStreaming && (!keepStreamingMarkdown || streamingRevealComplete)
+
+        if (presentationComplete && message.runMetrics != null) {
+            AgentRunMetricsLine(
+                metrics = message.runMetrics,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+
+        if (presentationComplete && message.content.isNotBlank()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -488,6 +495,84 @@ private fun AgentMessageBlock(
             }
         }
     }
+}
+
+@Composable
+private fun AgentRunMetricsLine(
+    metrics: AgentRunMetricsUi,
+    modifier: Modifier = Modifier,
+) {
+    val color = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.72f)
+    FlowRow(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        RunMetricItem(
+            iconRes = LucideR.drawable.lucide_ic_arrow_up,
+            contentDescription = "输入 Token",
+            text = "输入 ${metrics.inputTokens.formatTokenCount()}",
+            color = color,
+        )
+        RunMetricItem(
+            iconRes = LucideR.drawable.lucide_ic_database,
+            contentDescription = "缓存输入 Token",
+            text = "缓存 ${metrics.cachedInputTokens.formatTokenCount()}",
+            color = color,
+        )
+        RunMetricItem(
+            iconRes = LucideR.drawable.lucide_ic_arrow_down,
+            contentDescription = "输出 Token",
+            text = "输出 ${metrics.outputTokens.formatTokenCount()}",
+            color = color,
+        )
+        RunMetricItem(
+            iconRes = LucideR.drawable.lucide_ic_clock,
+            contentDescription = "单次对话耗时",
+            text = metrics.elapsedMs.formatElapsedTime(),
+            color = color,
+        )
+    }
+}
+
+@Composable
+private fun RunMetricItem(
+    iconRes: Int,
+    contentDescription: String,
+    text: String,
+    color: Color,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Icon(
+            painter = painterResource(iconRes),
+            contentDescription = contentDescription,
+            modifier = Modifier.size(12.dp),
+            tint = color,
+        )
+        Text(
+            text = text,
+            style = MiuixTheme.textStyles.footnote1,
+            color = color,
+        )
+    }
+}
+
+private fun Int?.formatTokenCount(): String =
+    this?.let { String.format(java.util.Locale.US, "%,d", it) } ?: "--"
+
+private fun Long?.formatElapsedTime(): String = when {
+    this == null -> "耗时 --"
+    this < 1_000L -> "耗时 ${this} ms"
+    this < 60_000L -> String.format(java.util.Locale.US, "耗时 %.1f 秒", this / 1_000.0)
+    else -> String.format(
+        java.util.Locale.US,
+        "耗时 %d 分 %.1f 秒",
+        this / 60_000L,
+        (this % 60_000L) / 1_000.0,
+    )
 }
 
 @Composable

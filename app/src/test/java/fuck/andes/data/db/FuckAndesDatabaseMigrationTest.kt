@@ -20,7 +20,7 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class FuckAndesDatabaseMigrationTest {
     @Test
-    fun migration6To9PreservesDataAndCleansOnlyKnownEmptyPlaceholders() {
+    fun migration6To10PreservesDataAndAddsRunMetrics() {
         val context = RuntimeEnvironment.getApplication() as Context
         val databaseName = "migration-${UUID.randomUUID()}.db"
         createVersion6Database(context, databaseName)
@@ -30,6 +30,7 @@ class FuckAndesDatabaseMigrationTest {
                 FuckAndesDatabase.MIGRATION_6_7,
                 FuckAndesDatabase.MIGRATION_7_8,
                 FuckAndesDatabase.MIGRATION_8_9,
+                FuckAndesDatabase.MIGRATION_9_10,
             )
             .build()
         try {
@@ -48,8 +49,12 @@ class FuckAndesDatabaseMigrationTest {
 
             assertEquals("保留的结果", result.content)
             assertEquals("[]", result.transcriptJson)
+            assertEquals(null, result.runInputTokens)
+            assertEquals(null, result.runElapsedMs)
             assertEquals("保留的归档", archive.content)
             assertEquals("[]", archive.transcriptJson)
+            assertEquals(null, archive.runOutputTokens)
+            assertEquals(null, archive.runElapsedMs)
             assertEquals(setOf("conv-1", "conv-custom-empty"), conversations.mapTo(mutableSetOf()) { it.id })
             assertEquals("[]", conversations.first { it.id == "conv-1" }.appliedRuntimeRunIdsJson)
             assertEquals(null, runBlocking(Dispatchers.IO) { database.conversationDao().state() })

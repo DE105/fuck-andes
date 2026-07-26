@@ -17,6 +17,12 @@ class AnthropicMessagesProviderTest {
     @Test
     fun completeParsesTextAndToolUseStream() {
         val body = buildString {
+            append(event("message_start", JSONObject()
+                .put("type", "message_start")
+                .put("message", JSONObject().put("usage", JSONObject()
+                    .put("input_tokens", 4)
+                    .put("cache_read_input_tokens", 3)
+                    .put("cache_creation_input_tokens", 2)))))
             append(event("content_block_start", JSONObject()
                 .put("type", "content_block_start")
                 .put("index", 0)
@@ -48,7 +54,7 @@ class AnthropicMessagesProviderTest {
             append(event("message_delta", JSONObject()
                 .put("type", "message_delta")
                 .put("delta", JSONObject().put("stop_reason", "tool_use"))
-                .put("usage", JSONObject().put("input_tokens", 4).put("output_tokens", 2))))
+                .put("usage", JSONObject().put("output_tokens", 2))))
             append(event("message_stop", JSONObject().put("type", "message_stop")))
         }
 
@@ -96,7 +102,11 @@ class AnthropicMessagesProviderTest {
                     .filter { it.kind == AssistantBlockKind.TEXT }
                     .joinToString("") { it.delta }
             )
-            assertEquals(1, events.filterIsInstance<ProviderEvent.Usage>().size)
+            val usages = events.filterIsInstance<ProviderEvent.Usage>().map { it.usage }
+            assertEquals(2, usages.size)
+            assertEquals(9, usages.first().inputTokens)
+            assertEquals(3, usages.first().cachedTokens)
+            assertEquals(2, usages.last().outputTokens)
         }
     }
 

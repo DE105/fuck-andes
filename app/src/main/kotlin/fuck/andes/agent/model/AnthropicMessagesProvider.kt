@@ -450,12 +450,19 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
 
     private fun parseUsage(usage: JSONObject?): AgentTokenUsage? {
         usage ?: return null
+        val uncachedInputTokens = usage.firstInt("input_tokens")
+        val cachedInputTokens = usage.firstInt("cache_read_input_tokens")
+        val cacheCreationInputTokens = usage.firstInt("cache_creation_input_tokens")
         return AgentTokenUsage(
             contextTokens = null,
-            inputTokens = usage.firstInt("input_tokens"),
+            inputTokens = sumKnown(
+                uncachedInputTokens,
+                cachedInputTokens,
+                cacheCreationInputTokens,
+            ),
             outputTokens = usage.firstInt("output_tokens"),
             reasoningTokens = usage.firstInt("thinking_output_tokens"),
-            cachedTokens = usage.firstInt("cache_read_input_tokens")
+            cachedTokens = cachedInputTokens,
         ).takeUnless { it.isEmpty }
     }
 
@@ -487,6 +494,13 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
             }
         }
         return null
+    }
+
+    private fun sumKnown(vararg values: Int?): Int? {
+        if (values.all { it == null }) return null
+        return values.sumOf { it?.toLong() ?: 0L }
+            .coerceAtMost(Int.MAX_VALUE.toLong())
+            .toInt()
     }
 
     private fun AgentTokenUsage.toJson(): JSONObject =
