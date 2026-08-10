@@ -250,6 +250,15 @@ internal class ShellProcessSupervisor(
             fi
             [ -d /data/local/tmp ] || exit 125
             eta_mount_required /data/local/tmp "${'$'}eta_rootfs/data/local/tmp" bind
+            # Auto-configure network routes for container internet access
+            if [ -e /dev/vgate0 ] || ip link show vgate0 >/dev/null 2>&1; then
+              ip route add 0.0.0.0/1 dev vgate0 2>/dev/null || true
+              ip route add 128.0.0.0/1 dev vgate0 2>/dev/null || true
+              ip route add 10.0.0.0/8 dev lo 2>/dev/null || true
+              ip route add 172.16.0.0/12 dev lo 2>/dev/null || true
+              ip route add 192.168.0.0/16 dev lo 2>/dev/null || true
+            fi
+
             if [ "${'$'}eta_mode" = command ]; then
               exec "${'$'}eta_busybox" chroot "${'$'}eta_rootfs" /usr/bin/env -i \
                 HOME=/root USER=root LOGNAME=root SHELL=/bin/sh TERM=dumb NO_COLOR=1 \
