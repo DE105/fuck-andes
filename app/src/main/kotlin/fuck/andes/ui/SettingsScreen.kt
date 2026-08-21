@@ -316,6 +316,38 @@ internal fun SettingsScreen(
                         onClick = openAssistantSettings,
                     )
                     PrefDivider()
+                    SwitchPref(
+                        context = context,
+                        prefs = prefs,
+                        title = "双击电源键打开钱包（仅 ColorOS）",
+                        key = Prefs.Keys.POWER_KEY_DOUBLE_PRESS_WALLET,
+                        icon = LucideR.drawable.lucide_ic_power,
+                        iconTint = ColorOSRoyalBlue,
+                    )
+                    PrefDivider()
+                    var walletTarget by remember(prefs) {
+                        mutableStateOf(prefs?.getString(Prefs.Keys.POWER_KEY_WALLET_TARGET, Prefs.Keys.WALLET_TARGET_GOOGLE) ?: Prefs.Keys.WALLET_TARGET_GOOGLE)
+                    }
+                    ArrowPreference(
+                        title = "双击打开的钱包目标",
+                        summary = if (walletTarget == Prefs.Keys.WALLET_TARGET_COLOROS) "一加 / ColorOS 钱包" else "谷歌钱包 (Google Wallet)",
+                        startAction = {
+                            TintedIcon(
+                                icon = LucideR.drawable.lucide_ic_power,
+                                tint = ColorOSRoyalBlue,
+                            )
+                        },
+                        onClick = {
+                            val nextTarget = if (walletTarget == Prefs.Keys.WALLET_TARGET_GOOGLE) Prefs.Keys.WALLET_TARGET_COLOROS else Prefs.Keys.WALLET_TARGET_GOOGLE
+                            val targetPrefs = prefs ?: return@ArrowPreference
+                            if (putStringSync(targetPrefs, Prefs.Keys.POWER_KEY_WALLET_TARGET, nextTarget)) {
+                                walletTarget = nextTarget
+                                val label = if (nextTarget == Prefs.Keys.WALLET_TARGET_COLOROS) "一加 / ColorOS 钱包" else "谷歌钱包"
+                                Toast.makeText(context.applicationContext, "已切换为：$label", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                    )
+                    PrefDivider()
                     WindowSpinnerPreference(
                         title = stringResource(R.string.ui_long_press_the_power_button_1958d0),
                         summary = powerAssistantTarget.displayName(context),

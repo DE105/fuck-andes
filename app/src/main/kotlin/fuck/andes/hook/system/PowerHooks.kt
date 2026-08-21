@@ -6,15 +6,20 @@ import fuck.andes.core.HookRegistrar
 import fuck.andes.core.ModuleConfig
 import fuck.andes.core.ModuleLogger
 import fuck.andes.core.safeLogType
+import android.app.ActivityOptions
+import android.app.KeyguardManager
 
 import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import android.os.Message
+import android.os.PowerManager
 import android.os.SystemClock
+import android.view.KeyEvent
 import fuck.andes.config.PowerAssistantTarget
 import fuck.andes.config.Prefs
 import io.github.libxposed.api.XposedModule
+import java.lang.reflect.Field
 
 internal object PowerHooks {
     private const val OEM_ASSISTANT_HAPTIC_EFFECT_ID = 0
@@ -22,6 +27,21 @@ internal object PowerHooks {
 
     @Volatile
     private var lastInterceptUptime = 0L
+    @Volatile
+    private var lastPowerPressUptime = 0L
+
+    @Volatile
+    private var isConsumingPowerPress = false
+
+    @Volatile
+    private var suppressSleepUntilUptime = 0L
+
+    @Volatile
+    private var cachedPowerKeyHandledField: Field? = null
+
+    @Volatile
+    private var cachedDoublePressBehaviorField: Field? = null
+
 
     private enum class LaunchResult {
         LAUNCHED,
@@ -38,6 +58,83 @@ internal object PowerHooks {
         return hooks.install {
             // 当前机型实测证明 OplusSpeechHandler 是必要路径，目标在热路径即时读取。
             hookOplusSpeechHandler(hooks, classLoader)
+            hookInterceptKeyBeforeQueueing(hooks, classLoader)
+            hookPowerManagerService(hooks, classLoader)
+        }
+    }
+
+    private fun hookPowerManagerService(
+        hooks: HookRegistrar,
+        classLoader: ClassLoader
+    ) {
+        val logger = hooks.logger
+        val pmsClass = HookSupport.findClassOrNull(classLoader, "com.android.server.power.PowerManagerService")
+            ?: return
+
+        val methods = HookSupport.findDeclaredMethods(pmsClass, makeAccessible = true) {
+            it.name == "goToSleep" || it.name == "goToSleepInternal"
+        }
+        for (method in methods) {
+            hooks.intercept(
+                id = "system.power-service-${method.name.lowercase()}",
+                executable = method,
+                description = "PowerManagerService.${method.name}"
+            ) { chain ->
+                if (SystemClock.uptimeMillis() < suppressSleepUntilUptime) {
+                    logger.debug { "PowerManagerService.${method.name}: 正在抑制双击唤起 Wallet 后的误关屏" }
+                    return@intercept null
+                }
+                chain.proceed()
+            }
+        }
+    }
+
+    private fun hookInterceptKeyBeforeQueueing(
+        hooks: HookRegistrar,
+        classLoader: ClassLoader
+    ) {
+        val logger = hooks.logger
+        val classesToSearch = listOfNotNull(
+            HookSupport.findClassOrNull(classLoader, ModuleConfig.PHONE_WINDOW_MANAGER_CLASS),
+            HookSupport.findClassOrNull(classLoader, "com.android.server.policy.PhoneWindowManagerExtImpl")
+        )
+
+        var hookCount = 0
+        for (clazz in classesToSearch) {
+            val methods = HookSupport.findDeclaredMethods(clazz, makeAccessible = true) {
+                it.name == "interceptKeyBeforeQueueing" || it.name == "interceptKeyBeforeDispatching"
+            }
+            for (method in methods) {
+                hookCount++
+                hooks.intercept(
+                    id = "system.power-key-${clazz.simpleName.lowercase()}-${method.name.lowercase()}",
+                    executable = method,
+                    description = "${clazz.simpleName}.${method.name}"
+                ) { chain ->
+                    val event = chain.args.firstOrNull { it is KeyEvent } as? KeyEvent
+                    if (event != null && event.keyCode == KeyEvent.KEYCODE_POWER) {
+                        if (Prefs.isEnabled(Prefs.Keys.POWER_KEY_DOUBLE_PRESS_WALLET)) {
+                            val thisObj = chain.getThisObject()
+                            val pwm = if (thisObj != null) resolvePhoneWindowManager(thisObj) ?: thisObj else null
+                            if (pwm != null) {
+                                val result = handlePowerKeyEvent(logger, pwm, event, "${clazz.simpleName}.${method.name}")
+                                if (result == 0) {
+                                    return@intercept 0
+                                }
+                            }
+                        }
+                    }
+                    chain.proceed()
+                }
+            }
+        }
+
+        if (hookCount == 0) {
+            hooks.missing(
+                id = "system.power-key-intercept",
+                description = "PhoneWindowManager.interceptKeyBeforeQueueing",
+                detail = "缺少 interceptKeyBeforeQueueing 方法"
+            )
         }
     }
 
@@ -68,6 +165,14 @@ internal object PowerHooks {
             if (message?.what != ModuleConfig.OP_LUS_ASSIST_MESSAGE_WHAT) {
                 return@intercept chain.proceed()
             }
+            lastPowerPressUptime = 0L
+            isConsumingPowerPress = false
+            suppressSleepUntilUptime = SystemClock.uptimeMillis() + 1500L
+
+            val pwm = resolvePhoneWindowManager(chain.getThisObject())
+            if (pwm != null) {
+                setPowerKeyHandled(pwm, true)
+            }
 
             val target = Prefs.powerAssistantTarget()
             val binding = assistantBindingFor(target)
@@ -76,7 +181,6 @@ internal object PowerHooks {
             }
 
             val handler = chain.getThisObject() as? Handler
-            val pwm = resolvePhoneWindowManager(chain.getThisObject())
             if (pwm == null) {
                 logger.warnThrottled("oplus_speech_missing_pwm") {
                     "OplusSpeechHandler 未能解析 PhoneWindowManager，回退原逻辑"
@@ -353,5 +457,185 @@ internal object PowerHooks {
             current = current.superclass
         }
         return null
+    }
+
+    private fun handlePowerKeyEvent(
+        logger: ModuleLogger,
+        phoneWindowManager: Any,
+        event: KeyEvent,
+        source: String
+    ): Int {
+        ensureDoublePressBehaviorEnabled(phoneWindowManager)
+
+        val now = SystemClock.uptimeMillis()
+
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            val timeSinceLast = now - lastPowerPressUptime
+
+            if (lastPowerPressUptime > 0L && timeSinceLast in 50L..420L) {
+                // 双击电源键第 2 次 DOWN
+                lastPowerPressUptime = 0L
+                isConsumingPowerPress = true
+                suppressSleepUntilUptime = SystemClock.uptimeMillis() + 1500L
+                setPowerKeyHandled(phoneWindowManager, true)
+
+                // 唤起目标钱包
+                tryLaunchWallet(logger, phoneWindowManager, source)
+                return 0 // 拦截第 2 次 DOWN
+            } else {
+                // 第 1 次 DOWN：放行让 ColorOS 接收 DOWN 事件
+                lastPowerPressUptime = now
+                isConsumingPowerPress = false
+                setPowerKeyHandled(phoneWindowManager, false)
+
+                return 1 // 放行第 1 次 DOWN
+            }
+        } else if (event.action == KeyEvent.ACTION_UP) {
+            if (isConsumingPowerPress) {
+                // 双击第 2 次 UP
+                isConsumingPowerPress = false
+                return 0 // 拦截第 2 次 UP
+            }
+            // 第 1 次 UP：放行让 ColorOS 接收 UP 事件
+            return 1
+        }
+        return 1
+    }
+
+    private fun setPowerKeyHandled(phoneWindowManager: Any, handled: Boolean) {
+        runCatching {
+            var field = cachedPowerKeyHandledField
+            if (field == null) {
+                field = HookSupport.findField(phoneWindowManager.javaClass, "mPowerKeyHandled")
+                cachedPowerKeyHandledField = field
+            }
+            field?.setBoolean(phoneWindowManager, handled)
+        }
+    }
+
+    private fun ensureDoublePressBehaviorEnabled(phoneWindowManager: Any) {
+        runCatching {
+            var field = cachedDoublePressBehaviorField
+            if (field == null) {
+                field = HookSupport.findField(phoneWindowManager.javaClass, "mDoublePressOnPowerBehavior")
+                cachedDoublePressBehaviorField = field
+            }
+            if (field != null) {
+                val currentVal = field.get(phoneWindowManager) as? Int ?: 0
+                if (currentVal == 0) {
+                    field.set(phoneWindowManager, 1) // 1 = DOUBLE_PRESS_POWER_CAMERA
+                }
+            }
+        }
+    }
+
+    private fun tryLaunchWallet(
+        logger: ModuleLogger,
+        phoneWindowManager: Any,
+        source: String
+    ): Boolean {
+        val context = HookSupport.getFieldValue(phoneWindowManager, "mContext") as? Context
+            ?: return false
+
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+        val keyguardManager = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+        val isLocked = keyguardManager?.isKeyguardLocked == true
+        val now = SystemClock.uptimeMillis()
+
+        if (powerManager?.isInteractive == false) {
+            runCatching {
+                val wakeUpMethod = powerManager.javaClass.methods.firstOrNull { it.name == "wakeUp" }
+                wakeUpMethod?.invoke(powerManager, now)
+            }
+        }
+
+        val target = Prefs.getString(Prefs.Keys.POWER_KEY_WALLET_TARGET, Prefs.Keys.WALLET_TARGET_GOOGLE)
+        val intent: Intent
+
+        if (target == Prefs.Keys.WALLET_TARGET_COLOROS) {
+            val candidates = listOf(
+                "com.finshell.wallet",
+                "com.coloros.wallet",
+                "com.oneplus.card",
+                "com.nearme.wallet"
+            )
+            val walletPackage = candidates.firstOrNull { HookSupport.isPackageInstalled(context, it) }
+                ?: "com.finshell.wallet"
+
+            intent = Intent("coloros.wallet.intent.action.OPEN").apply {
+                setPackage(walletPackage)
+                addCategory(Intent.CATEGORY_DEFAULT)
+                addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                )
+            }
+
+            if (!HookSupport.resolvesActivity(context, intent)) {
+                intent.action = "finshell.wallet.intent.action.OPEN"
+                if (!HookSupport.resolvesActivity(context, intent)) {
+                    context.packageManager.getLaunchIntentForPackage(walletPackage)?.let { launchIntent ->
+                        intent.action = launchIntent.action
+                        intent.component = launchIntent.component
+                    }
+                }
+            }
+
+            if (isLocked) {
+                intent.addFlags(0x00800000 or 0x00200000) // DISMISS_KEYGUARD | SHOW_WHEN_LOCKED
+            }
+        } else {
+            val walletPackage = "com.google.android.apps.walletnfcrel"
+            intent = Intent("com.google.android.apps.wallet.main.QUICKDRAW").apply {
+                setPackage(walletPackage)
+                addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                )
+            }
+
+            if (isLocked) {
+                intent.addFlags(0x00800000 or 0x00200000)
+            }
+
+            if (!HookSupport.resolvesActivity(context, intent)) {
+                intent.action = "com.google.android.apps.wallet.globalactions.START"
+                if (!HookSupport.resolvesActivity(context, intent)) {
+                    intent.action = Intent.ACTION_VIEW
+                    context.packageManager.getLaunchIntentForPackage(walletPackage)?.let { launchIntent ->
+                        intent.component = launchIntent.component
+                    }
+                }
+                intent.addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                )
+                if (isLocked) {
+                    intent.addFlags(0x00800000 or 0x00200000)
+                }
+            }
+        }
+
+        val options = ActivityOptions.makeBasic()
+        if (isLocked) {
+            runCatching { HookSupport.invokeNoArgs(options, "setDismissKeyguard") }
+        }
+
+        return runCatching {
+            context.startActivity(intent, options.toBundle())
+            logger.debug { "$source: 已成功拉起钱包刷卡页 ($target)" }
+            true
+        }.getOrElse { throwable ->
+            logger.warnThrottled("${source}_wallet_launch_failed") {
+                "$source: 无法启动钱包 ($target)，type=${throwable.safeLogType()}"
+            }
+            false
+        }
     }
 }

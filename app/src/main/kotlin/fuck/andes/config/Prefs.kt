@@ -29,6 +29,11 @@ internal object Prefs {
         const val POWER_KEY_ASSISTANT_TARGET = "power_key_assistant_target"
         // 兼容旧版布尔协议；新 UI 不再写入，缺少三态配置时 true 仍表示 Gemini。
         const val POWER_KEY_TAKEOVER = "power_key_takeover"
+        const val POWER_KEY_DOUBLE_PRESS_WALLET = "power_key_double_press_wallet"
+        const val POWER_KEY_WALLET_TARGET = "power_key_wallet_target"
+        const val WALLET_TARGET_GOOGLE = "google_wallet"
+        const val WALLET_TARGET_COLOROS = "coloros_wallet"
+
         const val ASSISTANT_AUTO_CONFIG = "assistant_auto_config"
         const val HOTWORD_SELF_HEAL = "hotword_self_heal"
         const val GESTURE_BAR_CIRCLE_TO_SEARCH = "gesture_bar_circle_to_search"
@@ -48,6 +53,7 @@ internal object Prefs {
         /** 全部布尔开关及其默认值。 */
         val BOOLEAN_DEFAULTS: Map<String, Boolean> = mapOf(
             POWER_KEY_TAKEOVER to false,
+            POWER_KEY_DOUBLE_PRESS_WALLET to false,
             ASSISTANT_AUTO_CONFIG to false,
             HOTWORD_SELF_HEAL to false,
             GESTURE_BAR_CIRCLE_TO_SEARCH to true,
@@ -120,6 +126,11 @@ internal object Prefs {
 
     fun getString(key: String): String {
         return remote?.getString(key, "") ?: ""
+    }
+
+    fun getString(key: String, defaultValue: String): String {
+        val preferences = if (key in Keys.LOCAL_AGENT_KEYS) localAgent ?: remote else remote
+        return preferences?.getString(key, defaultValue) ?: defaultValue
     }
 
     fun powerAssistantTarget(): PowerAssistantTarget = powerAssistantTarget(remote)
