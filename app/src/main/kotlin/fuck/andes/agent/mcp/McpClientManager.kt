@@ -238,7 +238,7 @@ internal object McpClientManager {
     )
 
     private fun JSONObject.toArgumentMap(): Map<String, Any?> = buildMap {
-        keys().forEach { key -> put(key, normalizeValue(get(key))) }
+        keys().forEach { key -> put(key, normalizeValue(opt(key))) }
     }
 
     private fun normalizeValue(value: Any?): Any? = when (value) {
