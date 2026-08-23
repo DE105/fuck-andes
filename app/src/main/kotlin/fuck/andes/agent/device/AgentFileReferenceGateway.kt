@@ -1,17 +1,21 @@
 package fuck.andes.agent.device
 
+import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.provider.MediaStore
+import android.provider.OpenableColumns
 import fuck.andes.agent.model.AgentFileReference
 import fuck.andes.agent.model.AgentFileReferenceKind
 import fuck.andes.agent.model.hasUnsupportedControlCharacter
 import fuck.andes.core.AgentLogger
+import java.io.File
 
 internal class AgentFileReferenceGateway(
     private val resolveDocumentPath: (Uri) -> String? = { null },
     private val executeRootCommand: (String) -> BoundedRootCommandExecutor.Result,
+    private val copyDocumentContent: (Uri, AgentFileReferenceKind) -> String? = { _, _ -> null },
 ) {
     constructor(logger: AgentLogger) : this(
         executeRootCommand = { command ->
@@ -39,6 +43,21 @@ internal class AgentFileReferenceGateway(
                 )
             }
         },
+        copyDocumentContent = { uri, kind ->
+            copySafDocumentToTemporaryRoot(
+                context.applicationContext,
+                uri,
+                kind,
+            ) { command ->
+                BoundedRootCommandExecutor(logger).use { executor ->
+                    executor.execute(
+                        command = command,
+                        timeoutMillis = VALIDATION_TIMEOUT_MS,
+                        maxOutputBytes = MAX_VALIDATION_OUTPUT_BYTES,
+                    )
+                }
+            }
+        },
     )
 
     fun resolveDocumentUri(
@@ -54,6 +73,7 @@ internal class AgentFileReferenceGateway(
         }.getOrNull() ?: return Resolution.Failure(Error.UnsupportedDocumentProvider)
         val mappedPath = mapPrimaryStorageDocument(uri.authority, documentId)
             ?: resolveDocumentPath(uri)
+            ?: copyDocumentContent(uri, expectedKind)
             ?: return Resolution.Failure(Error.UnsupportedDocumentProvider)
         return resolveAbsolutePath(mappedPath, expectedKind)
     }
@@ -135,8 +155,23 @@ internal class AgentFileReferenceGateway(
         const val TEMPORARY_ROOT = "/data/local/tmp"
 
         private const val MEDIA_DOCUMENTS_AUTHORITY = "com.android.providers.media.documents"
+        private const val DOWNLOADS_DOCUMENTS_AUTHORITY = "com.android.providers.downloads.documents"
+        private const val SAF_COPY_DIRECTORY = "eta-saf-cache"
 
         fun mapPrimaryStorageDocument(authority: String?, documentId: String): String? {
+            if (authority == DOWNLOADS_DOCUMENTS_AUTHORITY) {
+                if (documentId.hasUnsupportedControlCharacter()) return null
+                if (!documentId.startsWith("raw:")) return null
+                val rawPath = documentId.substringAfter("raw:")
+                if (
+                    rawPath.isEmpty() ||
+                    !rawPath.startsWith('/') ||
+                    rawPath.split('/').any { it == "." || it == ".." }
+                ) {
+                    return null
+                }
+                return rawPath
+            }
             if (authority != EXTERNAL_STORAGE_DOCUMENTS_AUTHORITY) return null
             if (documentId.hasUnsupportedControlCharacter()) return null
             val separator = documentId.indexOf(':')
@@ -193,6 +228,51 @@ internal class AgentFileReferenceGateway(
             // 文档提供方可以拒绝非标准列；这表示它没有可引用的本地绝对路径。
             null
         }
+
+        private fun copySafDocumentToTemporaryRoot(
+            context: Context,
+            uri: Uri,
+            expectedKind: AgentFileReferenceKind,
+            executeRootCommand: (String) -> BoundedRootCommandExecutor.Result,
+        ): String? {
+            if (expectedKind != AgentFileReferenceKind.File) return null
+            val displayName = queryDisplayName(context.contentResolver, uri)
+                ?.let { sanitizeFileName(it) }
+                ?: "saf-file"
+            val cacheFile = File(context.cacheDir, "saf-copy-${System.currentTimeMillis()}")
+            val copied = try {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    cacheFile.outputStream().use { output -> input.copyTo(output) }
+                    true
+                } ?: false
+            } catch (_: RuntimeException) {
+                false
+            }
+            if (!copied) return null
+            val targetDir = "$TEMPORARY_ROOT/$SAF_COPY_DIRECTORY"
+            val targetPath = "$targetDir/${System.currentTimeMillis()}-$displayName"
+            val result = executeRootCommand(
+                "mkdir -p ${shellQuote(targetDir)} && cp ${shellQuote(cacheFile.absolutePath)} ${shellQuote(targetPath)}"
+            )
+            return if (result.ok) targetPath else null
+        }
+
+        private fun queryDisplayName(resolver: ContentResolver, uri: Uri): String? = try {
+            resolver.query(
+                uri,
+                arrayOf(OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null,
+            )?.use { cursor ->
+                if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getString(0) else null
+            }
+        } catch (_: RuntimeException) {
+            null
+        }
+
+        private fun sanitizeFileName(name: String): String =
+            name.replace(Regex("""[/\\\u0000-\u001F\u007F]"""), "_").trim().take(180)
 
         internal fun isWithinAllowedRoots(path: String): Boolean =
             path == SHARED_STORAGE_ROOT ||

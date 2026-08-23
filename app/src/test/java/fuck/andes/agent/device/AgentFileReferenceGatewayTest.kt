@@ -218,6 +218,68 @@ class AgentFileReferenceGatewayTest {
         )
     }
 
+    @Test
+    fun mapPrimaryStorageDocument_mapsDownloadsRawPath() {
+        assertEquals(
+            "/storage/emulated/0/Download/report.txt",
+            AgentFileReferenceGateway.mapPrimaryStorageDocument(
+                "com.android.providers.downloads.documents",
+                "raw:/storage/emulated/0/Download/report.txt",
+            ),
+        )
+        assertNull(
+            AgentFileReferenceGateway.mapPrimaryStorageDocument(
+                "com.android.providers.downloads.documents",
+                "msf:12345",
+            )
+        )
+        assertNull(
+            AgentFileReferenceGateway.mapPrimaryStorageDocument(
+                "com.android.providers.downloads.documents",
+                "raw:relative/path",
+            )
+        )
+        assertNull(
+            AgentFileReferenceGateway.mapPrimaryStorageDocument(
+                "com.android.providers.downloads.documents",
+                "raw:/storage/emulated/0/Download/../secret",
+            )
+        )
+    }
+
+    @Test
+    fun resolveDocumentUri_copiesDocumentWhenLocalPathUnavailable() {
+        var copiedUri: Uri? = null
+        var copiedKind: AgentFileReferenceKind? = null
+        val gateway = AgentFileReferenceGateway(
+            resolveDocumentPath = { null },
+            executeRootCommand = {
+                success("file\n/data/local/tmp/eta-saf-cache/1-report.txt")
+            },
+            copyDocumentContent = { uri, kind ->
+                copiedUri = uri
+                copiedKind = kind
+                "/data/local/tmp/eta-saf-cache/1-report.txt"
+            },
+        )
+        val uri = Uri.parse(
+            "content://com.android.providers.downloads.documents/document/msf%3A12345"
+        )
+
+        assertEquals(
+            AgentFileReferenceGateway.Resolution.Success(
+                AgentFileReference(
+                    displayName = "1-report.txt",
+                    absolutePath = "/data/local/tmp/eta-saf-cache/1-report.txt",
+                    kind = AgentFileReferenceKind.File,
+                )
+            ),
+            gateway.resolveDocumentUri(uri, AgentFileReferenceKind.File),
+        )
+        assertEquals(uri, copiedUri)
+        assertEquals(AgentFileReferenceKind.File, copiedKind)
+    }
+
     private fun assertFailure(
         expected: AgentFileReferenceGateway.Error,
         result: AgentFileReferenceGateway.Resolution,
