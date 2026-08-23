@@ -5,11 +5,12 @@ import android.os.Build
 import fuck.andes.core.AndroidAgentLogger
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -39,6 +40,7 @@ internal enum class AlpineInstallStage {
     CHECKING,
     DOWNLOADING,
     EXTRACTING,
+    UPDATING_INDEX,
     INSTALLING_TOOLS,
     COMPLETE,
 }
@@ -47,7 +49,26 @@ internal data class AlpineInstallProgress(
     val stage: AlpineInstallStage,
     val downloadedBytes: Long = 0,
     val totalBytes: Long = 0,
-)
+    val currentPackage: Int = 0,
+    val totalPackages: Int = 0,
+) {
+    fun progressFraction(): Float? = when (stage) {
+        AlpineInstallStage.DOWNLOADING ->
+            if (totalBytes > 0L) {
+                (downloadedBytes.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
+            } else {
+                null
+            }
+        AlpineInstallStage.INSTALLING_TOOLS ->
+            if (totalPackages > 0) {
+                (currentPackage.toFloat() / totalPackages.toFloat()).coerceIn(0f, 1f)
+            } else {
+                null
+            }
+        AlpineInstallStage.COMPLETE -> 1f
+        else -> null
+    }
+}
 
 internal sealed interface AlpineInstallResult {
     data object AlreadyReady : AlpineInstallResult
@@ -185,8 +206,7 @@ internal class AlpineEnvironmentInstaller(
         }
 
         coroutineContext.ensureActive()
-        onProgress(AlpineInstallProgress(AlpineInstallStage.INSTALLING_TOOLS))
-        if (!installCommonTools(rootfs)) {
+        if (!installCommonTools(rootfs, onProgress)) {
             return@withContext AlpineInstallResult.Failed(AlpineInstallStage.INSTALLING_TOOLS)
         }
         onProgress(AlpineInstallProgress(AlpineInstallStage.COMPLETE))
@@ -278,10 +298,27 @@ internal class AlpineEnvironmentInstaller(
         return result.exitCode == 0 && AlpineEnvironmentPaths.rootfsReady(rootfs.absolutePath)
     }
 
-    private suspend fun installCommonTools(rootfs: File): Boolean {
+    private suspend fun installCommonTools(
+        rootfs: File,
+        onProgress: suspend (AlpineInstallProgress) -> Unit,
+    ): Boolean {
+        onProgress(AlpineInstallProgress(AlpineInstallStage.UPDATING_INDEX))
+        val indexResult = InstallerShellRunner.run(
+            command = "apk update",
+            timeoutSeconds = COMMON_TOOLS_TIMEOUT_SECONDS,
+            environment = TerminalEnvironment.LINUX,
+            linuxRootfsPath = rootfs.absolutePath,
+        )
+        if (indexResult.exitCode != 0) {
+            AndroidAgentLogger.info(
+                "Alpine environment action=update_index outcome=failed " +
+                    "exitCode=${indexResult.exitCode} outputChars=${indexResult.output.length}",
+            )
+            return false
+        }
+
         val packages = DEFAULT_PACKAGES.joinToString(" ")
         val command = """
-            apk update
             apk add --no-cache $packages
             ln -sf /usr/bin/python3 /usr/local/bin/python
             cat > /${AlpineEnvironmentPaths.COMMON_TOOLS_MARKER} <<'ETA_TOOLSET_EOF'
@@ -291,12 +328,23 @@ internal class AlpineEnvironmentInstaller(
             ETA_TOOLSET_EOF
             chmod 0644 /${AlpineEnvironmentPaths.COMMON_TOOLS_MARKER}
         """.trimIndent()
+        onProgress(AlpineInstallProgress(AlpineInstallStage.INSTALLING_TOOLS))
         val result = InstallerShellRunner.run(
             command = command,
             timeoutSeconds = COMMON_TOOLS_TIMEOUT_SECONDS,
             environment = TerminalEnvironment.LINUX,
             linuxRootfsPath = rootfs.absolutePath,
-        )
+        ) { line ->
+            parseApkPackageProgress(line)?.let { (current, total) ->
+                onProgress(
+                    AlpineInstallProgress(
+                        stage = AlpineInstallStage.INSTALLING_TOOLS,
+                        currentPackage = current,
+                        totalPackages = total,
+                    ),
+                )
+            }
+        }
         AndroidAgentLogger.info(
             "Alpine environment action=install_tools " +
                 "outcome=${if (result.exitCode == 0) "succeeded" else "failed"} " +
@@ -417,57 +465,119 @@ internal data class InstallerCommandResult(
     val output: String,
 )
 
+private val apkPackageProgressRegex = Regex("""^\((\d+)/(\d+)\)\s+""")
+
+internal fun parseApkPackageProgress(line: String): Pair<Int, Int>? {
+    val match = apkPackageProgressRegex.find(line) ?: return null
+    val current = match.groupValues[1].toIntOrNull() ?: return null
+    val total = match.groupValues[2].toIntOrNull() ?: return null
+    if (current < 0 || total <= 0) return null
+    return current to total
+}
+
 internal object InstallerShellRunner {
     private const val MAX_OUTPUT_BYTES = 64 * 1024
+    private const val POLL_INTERVAL_MS = 100L
+    private const val EOF_SENTINEL = "\u0000eta-installer-eof\u0000"
 
     suspend fun run(
         command: String,
         timeoutSeconds: Long,
         environment: TerminalEnvironment,
         linuxRootfsPath: String? = null,
-    ): InstallerCommandResult = runInterruptible(Dispatchers.IO) {
+        onOutputLine: suspend (String) -> Unit = {},
+    ): InstallerCommandResult {
         val supervisor = ShellProcessSupervisor()
-        val process = supervisor.startShellProcess(
-            identity = "root",
-            command = command,
-            mergeStderr = true,
-            environment = environment,
-            linuxRootfsPath = linuxRootfsPath,
-        ) ?: return@runInterruptible InstallerCommandResult(exitCode = -1, output = "")
+        val process = withContext(Dispatchers.IO) {
+            supervisor.startShellProcess(
+                identity = "root",
+                command = command,
+                mergeStderr = true,
+                environment = environment,
+                linuxRootfsPath = linuxRootfsPath,
+            )
+        } ?: return InstallerCommandResult(exitCode = -1, output = "")
+
         val output = ByteArrayOutputStream()
+        val lines = LinkedBlockingQueue<String>()
         val reader = thread(name = "eta-alpine-installer-output", isDaemon = true) {
-            runCatching {
-                process.inputStream.use { input ->
-                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            try {
+                process.inputStream.bufferedReader().use { input ->
                     while (true) {
-                        val count = input.read(buffer)
-                        if (count < 0) break
-                        synchronized(output) {
-                            val remaining = (MAX_OUTPUT_BYTES - output.size()).coerceAtLeast(0)
-                            if (remaining > 0) output.write(buffer, 0, count.coerceAtMost(remaining))
-                        }
+                        val line = input.readLine() ?: break
+                        appendBoundedLine(output, line)
+                        lines.put(line)
                     }
                 }
+            } finally {
+                lines.put(EOF_SENTINEL)
             }
         }
-        runCatching { process.outputStream.close() }
+        withContext(Dispatchers.IO) { runCatching { process.outputStream.close() } }
+
         try {
-            val finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS)
-            if (!finished) {
-                supervisor.terminateProcessTree(process)
+            val deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds)
+            var timedOut = false
+            var reachedEof = false
+            while (!reachedEof && !timedOut) {
+                coroutineContext.ensureActive()
+                val remainingNanos = deadlineNanos - System.nanoTime()
+                if (remainingNanos <= 0) {
+                    timedOut = true
+                    break
+                }
+                val pollNanos = minOf(remainingNanos, TimeUnit.MILLISECONDS.toNanos(POLL_INTERVAL_MS))
+                val line = withContext(Dispatchers.IO) {
+                    lines.poll(pollNanos, TimeUnit.NANOSECONDS)
+                } ?: continue
+                if (line == EOF_SENTINEL) {
+                    reachedEof = true
+                } else {
+                    onOutputLine(line)
+                }
+            }
+
+            if (timedOut) {
+                withContext(Dispatchers.IO) { supervisor.terminateProcessTree(process) }
                 reader.join(1_000)
                 InstallerCommandResult(exitCode = -2, output = output.text())
             } else {
+                drainLines(lines, onOutputLine)
                 reader.join(1_000)
-                InstallerCommandResult(exitCode = process.exitValue(), output = output.text())
+                withContext(Dispatchers.IO) { process.waitFor(1, TimeUnit.SECONDS) }
+                InstallerCommandResult(
+                    exitCode = runCatching { process.exitValue() }.getOrDefault(-1),
+                    output = output.text(),
+                )
             }
         } finally {
-            if (process.isAlive) {
-                supervisor.terminateAndReap(process)
-            } else {
-                supervisor.reapProcess(process)
+            withContext(NonCancellable + Dispatchers.IO) {
+                if (process.isAlive) {
+                    supervisor.terminateAndReap(process)
+                } else {
+                    supervisor.reapProcess(process)
+                }
+                supervisor.unregisterProcess(process)
             }
-            supervisor.unregisterProcess(process)
+        }
+    }
+
+    private suspend fun drainLines(
+        lines: LinkedBlockingQueue<String>,
+        onOutputLine: suspend (String) -> Unit,
+    ) {
+        while (true) {
+            val line = lines.poll() ?: return
+            if (line == EOF_SENTINEL) return
+            onOutputLine(line)
+        }
+    }
+
+    private fun appendBoundedLine(output: ByteArrayOutputStream, line: String) {
+        val bytes = (line + "\n").encodeToByteArray()
+        synchronized(output) {
+            val remaining = (MAX_OUTPUT_BYTES - output.size()).coerceAtLeast(0)
+            if (remaining > 0) output.write(bytes, 0, bytes.size.coerceAtMost(remaining))
         }
     }
 

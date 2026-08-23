@@ -859,6 +859,7 @@
   <string name="linux_installing">安裝中</string>
   <string name="linux_ready">已就緒</string>
   <string name="linux_upgrade_tools">升級工具</string>
+  <string name="linux_reinstall_tools">重新安裝工具</string>
   <string name="linux_continue_installation">繼續安裝</string>
   <string name="linux_download_install">下載並安裝</string>
   <string name="linux_not_checked">尚未檢查</string>
@@ -891,6 +892,7 @@
   <string name="linux_sdcard_unavailable">/sdcard 目前無法使用</string>
   <string name="linux_space_remaining">剩餘 %1$s</string>
   <string name="linux_progress_percent">%1$s · %2$d%%</string>
+  <string name="linux_tools_package_progress">%1$s · %2$d/%3$d</string>
   <string name="linux_tool_progress_percent">%1$s · %2$s %3$d%%</string>
   <string name="linux_tool">工具</string>
   <string name="linux_already_ready">Linux 工具環境已就緒</string>
@@ -908,6 +910,7 @@
   <string name="linux_stage_checking">檢查 Root 與 BusyBox</string>
   <string name="linux_stage_downloading">下載 Alpine 基礎環境</string>
   <string name="linux_stage_extracting">解壓縮基礎環境</string>
+  <string name="linux_stage_updating_index">更新軟體來源索引</string>
   <string name="linux_stage_installing_tools">安裝常用工具</string>
   <string name="linux_stage_complete">環境已就緒</string>
   <string name="linux_apk_stage_checking">檢查 Linux 基礎環境</string>

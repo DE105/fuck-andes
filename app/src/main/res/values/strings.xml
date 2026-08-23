@@ -871,6 +871,7 @@
   <string name="linux_installing">Installing</string>
   <string name="linux_ready">Ready</string>
   <string name="linux_upgrade_tools">Upgrade tools</string>
+  <string name="linux_reinstall_tools">Reinstall tools</string>
   <string name="linux_continue_installation">Continue installation</string>
   <string name="linux_download_install">Download and install</string>
   <string name="linux_not_checked">Not checked</string>
@@ -904,6 +905,7 @@
   <string name="linux_sdcard_unavailable">/sdcard currently unavailable</string>
   <string name="linux_space_remaining">%1$s free</string>
   <string name="linux_progress_percent">%1$s · %2$d%%</string>
+  <string name="linux_tools_package_progress">%1$s · %2$d/%3$d</string>
   <string name="linux_tool_progress_percent">%1$s · %2$s %3$d%%</string>
   <string name="linux_tool">Tool</string>
   <string name="linux_already_ready">The Linux tool environment is ready</string>
@@ -921,6 +923,7 @@
   <string name="linux_stage_checking">Checking Root and BusyBox</string>
   <string name="linux_stage_downloading">Downloading the Alpine base environment</string>
   <string name="linux_stage_extracting">Extracting the base environment</string>
+  <string name="linux_stage_updating_index">Updating the package index</string>
   <string name="linux_stage_installing_tools">Installing common tools</string>
   <string name="linux_stage_complete">Environment ready</string>
   <string name="linux_apk_stage_checking">Checking the Linux base environment</string>

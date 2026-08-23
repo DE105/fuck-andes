@@ -5,6 +5,7 @@ import androidx.compose.ui.res.stringResource
 import android.content.Context
 import android.icu.text.ListFormatter
 import android.text.format.Formatter
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,6 +32,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
 
@@ -74,18 +76,19 @@ internal fun LinuxEnvironmentScreen(
                         TextButton(
                             text = when {
                                 installing -> context.getString(R.string.linux_installing)
-                                status.state == AlpineEnvironmentState.READY -> context.getString(R.string.linux_ready)
+                                status.state == AlpineEnvironmentState.READY -> context.getString(R.string.linux_reinstall_tools)
                                 status.state == AlpineEnvironmentState.BASE_READY && status.version != null -> context.getString(R.string.linux_upgrade_tools)
                                 status.state == AlpineEnvironmentState.BASE_READY -> context.getString(R.string.linux_continue_installation)
                                 else -> context.getString(R.string.linux_download_install)
                             },
-                            enabled = !installing && status.state != AlpineEnvironmentState.READY,
+                            enabled = !installing,
                             onClick = {
                                 if (installing) return@TextButton
                                 installing = true
                                 resultMessage = null
                                 coroutineScope.launch {
-                                    val result = installer.install { update ->
+                                    val forceToolInstall = status.state == AlpineEnvironmentState.READY
+                                    val result = installer.install(forceToolInstall = forceToolInstall) { update ->
                                         withContext(Dispatchers.Main.immediate) {
                                             progress = update
                                         }
@@ -101,6 +104,11 @@ internal fun LinuxEnvironmentScreen(
                         )
                     },
                 )
+                if (installing && progress != null) {
+                    InstallLinearProgress(
+                        progress = progress?.progressFraction(),
+                    )
+                }
             }
         }
 
@@ -199,6 +207,11 @@ internal fun LinuxEnvironmentScreen(
                             )
                         },
                     )
+                    if (installing && apkAnalysisProgress != null) {
+                        InstallLinearProgress(
+                            progress = apkAnalysisProgress?.progressFraction(),
+                        )
+                    }
                 }
             }
         }
@@ -304,13 +317,54 @@ private fun AlpineEnvironmentHealth.summary(context: Context): String {
 
 private fun Long.toReadableSize(context: Context): String = Formatter.formatShortFileSize(context, this)
 
+@Composable
+private fun InstallLinearProgress(
+    progress: Float?,
+    modifier: Modifier = Modifier,
+) {
+    LinearProgressIndicator(
+        progress = progress,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 12.dp),
+        height = 4.dp,
+    )
+}
+
+private fun ApkAnalysisInstallProgress.progressFraction(): Float? = when (stage) {
+    ApkAnalysisInstallStage.DOWNLOADING ->
+        if (totalBytes > 0L) {
+            (downloadedBytes.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
+        } else {
+            null
+        }
+    ApkAnalysisInstallStage.COMPLETE -> 1f
+    else -> null
+}
+
 private fun AlpineInstallProgress.summary(context: Context): String {
     val stageName = stage.displayName(context)
-    if (stage != AlpineInstallStage.DOWNLOADING || totalBytes <= 0L) {
-        return stageName
+    when (stage) {
+        AlpineInstallStage.DOWNLOADING -> {
+            if (totalBytes > 0L) {
+                val percent = (downloadedBytes * 100L / totalBytes).coerceIn(0L, 100L)
+                return context.getString(R.string.linux_progress_percent, stageName, percent)
+            }
+        }
+        AlpineInstallStage.INSTALLING_TOOLS -> {
+            if (totalPackages > 0) {
+                return context.getString(
+                    R.string.linux_tools_package_progress,
+                    stageName,
+                    currentPackage,
+                    totalPackages,
+                )
+            }
+        }
+        else -> Unit
     }
-    val percent = (downloadedBytes * 100L / totalBytes).coerceIn(0L, 100L)
-    return context.getString(R.string.linux_progress_percent, stageName, percent)
+    return stageName
 }
 
 private fun ApkAnalysisInstallProgress.summary(context: Context): String {
@@ -357,6 +411,7 @@ private fun AlpineInstallStage.displayName(context: Context): String = context.g
         AlpineInstallStage.CHECKING -> R.string.linux_stage_checking
         AlpineInstallStage.DOWNLOADING -> R.string.linux_stage_downloading
         AlpineInstallStage.EXTRACTING -> R.string.linux_stage_extracting
+        AlpineInstallStage.UPDATING_INDEX -> R.string.linux_stage_updating_index
         AlpineInstallStage.INSTALLING_TOOLS -> R.string.linux_stage_installing_tools
         AlpineInstallStage.COMPLETE -> R.string.linux_stage_complete
     },

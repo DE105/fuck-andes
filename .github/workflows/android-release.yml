@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: android-build-${{ github.ref }}
@@ -115,3 +115,41 @@ jobs:
           archive: false
           if-no-files-found: error
           retention-days: 14
+
+      - name: 发布 GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version_name="$(sed -n 's/.*versionName = "\(.*\)".*/\1/p' app/build.gradle.kts | head -n 1)"
+          if [[ -z "$version_name" ]]; then
+            echo "::error::无法从 app/build.gradle.kts 解析 versionName。"
+            exit 1
+          fi
+          tag="v${version_name}"
+          apk_dir="$RUNNER_TEMP/apks"
+          notes_file="$RUNNER_TEMP/release-notes.md"
+
+          # 从 CHANGELOG.md 提取当前版本段落作为 Release 说明；缺失时回退为默认文案。
+          if [[ -f CHANGELOG.md ]] && awk -v v="$version_name" \
+            'BEGIN{found=0} /^## /{if (found) exit} index($0, "## [" v "]") == 1 {found=1; next} found{print}' \
+            CHANGELOG.md > "$notes_file" && [[ -s "$notes_file" ]]; then
+            echo "已从 CHANGELOG.md 提取 Release 说明。"
+          else
+            printf 'Eta %s 正式版。\n\n自动构建的 Debug 与 Release 安装包见本页 Assets。\n' "$version_name" > "$notes_file"
+          fi
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag 已存在，更新资产与说明。"
+            gh release upload "$tag" \
+              "$apk_dir/app-debug.apk" "$apk_dir/app-release.apk" \
+              --clobber
+            gh release edit "$tag" \
+              --title "Eta ${version_name}" \
+              --notes-file "$notes_file"
+          else
+            gh release create "$tag" \
+              --title "Eta ${version_name}" \
+              --notes-file "$notes_file" \
+              "$apk_dir/app-debug.apk" "$apk_dir/app-release.apk"
+          fi
