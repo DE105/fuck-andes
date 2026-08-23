@@ -291,6 +291,18 @@ internal fun SettingsScreen(
                         },
                         onClick = { onNavigate(AppRoute.LinuxEnvironment) },
                     )
+                    PrefDivider()
+                    ArrowPreference(
+                        title = stringResource(R.string.ui_mcp_servers_title_bf7aa),
+                        summary = stringResource(R.string.ui_mcp_enable_tools_summary_01031),
+                        startAction = {
+                            TintedIcon(
+                                icon = LucideR.drawable.lucide_ic_server,
+                                tint = ColorOSPurple,
+                            )
+                        },
+                        onClick = { onNavigate(AppRoute.McpServers) },
+                    )
                 }
             }
 

@@ -2,6 +2,19 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.6.7] - 2026-08-23
+
+### 新增
+
+- **MCP 工具客户端**：为 Agent 集成 Model Context Protocol 工具调用能力（仅客户端）。支持三种传输方式——HTTP（Streamable）、SSE、本地 stdio 子进程（如 `npx`/`uvx` 服务器），可把任意 MCP 服务器暴露的工具并入 Agent 的 function-calling 目录，调用结果经 Agent 循环回灌给模型。
+
+### 实现
+
+- **配置管理**：新增「MCP 服务器」设置页，支持服务器增删改、传输类型切换、Bearer Token 与自定义请求头、stdio 命令/参数/环境变量、超时与启用开关；支持 Claude-Desktop 兼容的 `mcpServers` JSON 一键导入与导出。
+- **客户端接入**：新增 `McpConfigStore`（Preferences DataStore 持久化）、`McpClientManager`（会话复用、工具发现 TTL 缓存、超时控制）与 `StdioProcessBridge`（子进程 stdio 桥接）。
+- **Agent 集成**：MCP 服务器工具以 `mcp__{server}__{tool}` 命名并入工具目录，避免与内置工具冲突；默认关闭，需在设置中启用。
+- 依赖官方 `io.modelcontextprotocol:kotlin-sdk-client:0.10.0` 与 Ktor CIO/SSE 客户端。
+
 ## [2.6.6] - 2026-08-23
 
 ### 修复

@@ -67,6 +67,8 @@ import fuck.andes.ui.screens.browser.AgentBrowserScreen
 import fuck.andes.ui.screens.enhance.SystemEnhanceScreen
 import fuck.andes.ui.screens.home.AgentHomeScreen
 import fuck.andes.ui.screens.memory.AgentMemoryScreen
+import fuck.andes.ui.screens.mcp.McpServerEditScreen
+import fuck.andes.ui.screens.mcp.McpServersScreen
 import fuck.andes.ui.screens.permissions.PermissionHealthScreen
 import fuck.andes.ui.screens.skills.AgentSkillsScreen
 import fuck.andes.ui.screens.terminal.LinuxEnvironmentScreen
@@ -486,6 +488,20 @@ fun AgentAppRoot(
             entry<AppRoute.LinuxEnvironment>(swipeDismiss = swipeDismiss) {
                 LinuxEnvironmentScreen(
                     context = context,
+                    onBack = ::popRoute,
+                )
+            }
+            entry<AppRoute.McpServers>(swipeDismiss = swipeDismiss) {
+                McpServersScreen(
+                    context = context,
+                    onNavigate = { route -> pushRoute(route) },
+                    onBack = ::popRoute,
+                )
+            }
+            entry<AppRoute.McpServerEdit>(swipeDismiss = swipeDismiss) { route ->
+                McpServerEditScreen(
+                    context = context,
+                    serverId = route.serverId,
                     onBack = ::popRoute,
                 )
             }
