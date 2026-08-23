@@ -16,6 +16,7 @@ internal class AgentFileReferenceGateway(
     private val resolveDocumentPath: (Uri) -> String? = { null },
     private val executeRootCommand: (String) -> BoundedRootCommandExecutor.Result,
     private val copyDocumentContent: (Uri, AgentFileReferenceKind) -> String? = { _, _ -> null },
+    private val logger: AgentLogger = NoOpAgentLogger,
 ) {
     constructor(logger: AgentLogger) : this(
         executeRootCommand = { command ->
@@ -26,7 +27,8 @@ internal class AgentFileReferenceGateway(
                     maxOutputBytes = MAX_VALIDATION_OUTPUT_BYTES,
                 )
             }
-        }
+        },
+        logger = logger,
     )
 
     constructor(
@@ -48,11 +50,12 @@ internal class AgentFileReferenceGateway(
                 context.applicationContext,
                 uri,
                 kind,
+                logger = logger,
             ) { command ->
                 BoundedRootCommandExecutor(logger).use { executor ->
                     executor.execute(
                         command = command,
-                        timeoutMillis = VALIDATION_TIMEOUT_MS,
+                        timeoutMillis = SAF_COPY_TIMEOUT_MS,
                         maxOutputBytes = MAX_VALIDATION_OUTPUT_BYTES,
                     )
                 }
@@ -70,12 +73,35 @@ internal class AgentFileReferenceGateway(
             } else {
                 DocumentsContract.getDocumentId(uri)
             }
-        }.getOrNull() ?: return Resolution.Failure(Error.UnsupportedDocumentProvider)
-        val mappedPath = mapPrimaryStorageDocument(uri.authority, documentId)
-            ?: resolveDocumentPath(uri)
-            ?: copyDocumentContent(uri, expectedKind)
-            ?: return Resolution.Failure(Error.UnsupportedDocumentProvider)
-        return resolveAbsolutePath(mappedPath, expectedKind)
+        }.getOrNull()
+        if (documentId == null) {
+            logger.debug {
+                "resolveDocumentUri: 无法解析 document id uri=$uri authority=${uri.authority} kind=$expectedKind"
+            }
+            return Resolution.Failure(Error.UnsupportedDocumentProvider)
+        }
+        mapPrimaryStorageDocument(uri.authority, documentId)?.let { mapped ->
+            logger.debug {
+                "resolveDocumentUri: 主存储卷映射成功 uri=$uri documentId=$documentId path=$mapped"
+            }
+            return resolveAbsolutePath(mapped, expectedKind)
+        }
+        resolveDocumentPath(uri)?.let { path ->
+            logger.debug {
+                "resolveDocumentUri: 本地路径查询成功 uri=$uri path=$path"
+            }
+            return resolveAbsolutePath(path, expectedKind)
+        }
+        copyDocumentContent(uri, expectedKind)?.let { path ->
+            logger.debug {
+                "resolveDocumentUri: SAF 拷贝兜底成功 uri=$uri kind=$expectedKind path=$path"
+            }
+            return resolveAbsolutePath(path, expectedKind)
+        }
+        logger.debug {
+            "resolveDocumentUri: 所有解析器均失败 uri=$uri authority=${uri.authority} documentId=$documentId kind=$expectedKind"
+        }
+        return Resolution.Failure(Error.UnsupportedDocumentProvider)
     }
 
     fun resolveAbsolutePath(
@@ -157,6 +183,7 @@ internal class AgentFileReferenceGateway(
         private const val MEDIA_DOCUMENTS_AUTHORITY = "com.android.providers.media.documents"
         private const val DOWNLOADS_DOCUMENTS_AUTHORITY = "com.android.providers.downloads.documents"
         private const val SAF_COPY_DIRECTORY = "eta-saf-cache"
+        private const val SAF_COPY_TIMEOUT_MS = 60_000L
 
         fun mapPrimaryStorageDocument(authority: String?, documentId: String): String? {
             if (authority == DOWNLOADS_DOCUMENTS_AUTHORITY) {
@@ -233,9 +260,15 @@ internal class AgentFileReferenceGateway(
             context: Context,
             uri: Uri,
             expectedKind: AgentFileReferenceKind,
+            logger: AgentLogger,
             executeRootCommand: (String) -> BoundedRootCommandExecutor.Result,
         ): String? {
-            if (expectedKind != AgentFileReferenceKind.File) return null
+            if (expectedKind != AgentFileReferenceKind.File) {
+                logger.debug {
+                    "copySafDocumentToTemporaryRoot: 目录不支持拷贝 kind=$expectedKind uri=$uri"
+                }
+                return null
+            }
             val displayName = queryDisplayName(context.contentResolver, uri)
                 ?.let { sanitizeFileName(it) }
                 ?: "saf-file"
@@ -248,13 +281,25 @@ internal class AgentFileReferenceGateway(
             } catch (_: RuntimeException) {
                 false
             }
-            if (!copied) return null
+            if (!copied) {
+                logger.debug {
+                    "copySafDocumentToTemporaryRoot: 无法读取内容 uri=$uri displayName=$displayName"
+                }
+                return null
+            }
             val targetDir = "$TEMPORARY_ROOT/$SAF_COPY_DIRECTORY"
             val targetPath = "$targetDir/${System.currentTimeMillis()}-$displayName"
             val result = executeRootCommand(
                 "mkdir -p ${shellQuote(targetDir)} && cp ${shellQuote(cacheFile.absolutePath)} ${shellQuote(targetPath)}"
             )
-            return if (result.ok) targetPath else null
+            if (!result.ok) {
+                logger.debug {
+                    "copySafDocumentToTemporaryRoot: root 拷贝失败 exit=${result.exitCode} " +
+                        "timedOut=${result.timedOut} stderr=${result.stderr} target=$targetPath"
+                }
+                return null
+            }
+            return targetPath
         }
 
         private fun queryDisplayName(resolver: ContentResolver, uri: Uri): String? = try {
@@ -309,4 +354,11 @@ internal class AgentFileReferenceGateway(
         private const val VALIDATION_TIMEOUT_MS = 5_000L
         private const val MAX_VALIDATION_OUTPUT_BYTES = 8 * 1024
     }
+}
+
+private object NoOpAgentLogger : AgentLogger {
+    override fun debug(message: () -> String) = Unit
+    override fun info(message: String) = Unit
+    override fun warn(message: String) = Unit
+    override fun error(message: String, throwable: Throwable?) = Unit
 }
