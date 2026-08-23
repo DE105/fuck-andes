@@ -873,6 +873,16 @@
   <string name="linux_mirror_aliyun">阿里雲</string>
   <string name="linux_mirror_tuna">清華大學 TUNA</string>
   <string name="linux_mirror_ustc">中國科學技術大學 USTC</string>
+  <string name="linux_mirror_custom">自訂映像源</string>
+  <string name="linux_mirror_custom_with_url">自訂（%1$s）</string>
+  <string name="linux_mirror_custom_placeholder">尚未設定</string>
+  <string name="linux_mirror_custom_hint">映像根位址，例如 https://mirrors.example.com/alpine</string>
+  <string name="linux_mirror_custom_save_hint">儲存上方位址並切換到自訂映像源</string>
+  <string name="linux_mirror_latency_test">測試延遲</string>
+  <string name="linux_mirror_latency_testing">測試中…</string>
+  <string name="linux_mirror_latency_ms">%1$d 毫秒</string>
+  <string name="linux_mirror_latency_unreachable">無法連線</string>
+  <string name="linux_install_unexpected_error">安裝意外中斷，請重試</string>
   <string name="linux_not_checked">尚未檢查</string>
   <string name="linux_health_summary">檢查核心指令、工作區掛載、共用儲存空間與剩餘容量</string>
   <string name="linux_busy">忙碌</string>

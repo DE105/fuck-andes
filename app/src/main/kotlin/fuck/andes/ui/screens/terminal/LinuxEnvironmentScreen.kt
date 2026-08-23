@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -16,17 +17,19 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import fuck.andes.agent.terminal.AlpineEnvironmentInstaller
+import fuck.andes.agent.terminal.AlpineEnvironmentController
 import fuck.andes.agent.terminal.AlpineEnvironmentHealth
+import fuck.andes.agent.terminal.AlpineEnvironmentInstaller
 import fuck.andes.agent.terminal.AlpineApkAnalysisInstaller
 import fuck.andes.agent.terminal.AlpineEnvironmentState
 import fuck.andes.agent.terminal.AlpineEnvironmentStatus
 import fuck.andes.agent.terminal.AlpineInstallProgress
-import fuck.andes.agent.terminal.AlpineInstallResult
 import fuck.andes.agent.terminal.AlpineInstallStage
+import fuck.andes.agent.terminal.AlpineMirrorLatencyProbe
 import fuck.andes.agent.terminal.ApkAnalysisInstallProgress
 import fuck.andes.agent.terminal.ApkAnalysisInstallResult
 import fuck.andes.agent.terminal.ApkAnalysisInstallStage
+import fuck.andes.agent.terminal.displayName
 import fuck.andes.data.datastore.SettingsDataStore
 import fuck.andes.data.model.AlpineMirror
 import fuck.andes.ui.components.MiuixScaffoldPage
@@ -38,6 +41,7 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.TextField
 
 @Composable
 internal fun LinuxEnvironmentScreen(
@@ -45,26 +49,43 @@ internal fun LinuxEnvironmentScreen(
     onBack: () -> Unit,
 ) {
     var mirror by remember { mutableStateOf(AlpineMirror.OFFICIAL) }
+    var customMirrorUrl by remember { mutableStateOf<String?>(null) }
+    var customMirrorDraft by remember { mutableStateOf("") }
     var mirrorExpanded by remember { mutableStateOf(false) }
+    var latencies by remember { mutableStateOf<Map<String, Long?>>(emptyMap()) }
+    var latencyTesting by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        mirror = SettingsDataStore.settings().alpineMirror
+        val settings = SettingsDataStore.settings()
+        mirror = settings.alpineMirror
+        customMirrorUrl = settings.customAlpineMirrorUrl
+        customMirrorDraft = settings.customAlpineMirrorUrl.orEmpty()
     }
-    val installer = remember(context.applicationContext, mirror) {
-        AlpineEnvironmentInstaller(context.applicationContext, mirror = mirror)
+    val installer = remember(context.applicationContext, mirror, customMirrorUrl) {
+        AlpineEnvironmentInstaller(
+            context.applicationContext,
+            mirror = mirror,
+            customMirrorUrl = customMirrorUrl,
+        )
     }
     val apkAnalysisInstaller = remember(context.applicationContext) {
         AlpineApkAnalysisInstaller(context.applicationContext)
     }
     val coroutineScope = rememberCoroutineScope()
+    val session by AlpineEnvironmentController.session.collectAsState()
     var status by remember { mutableStateOf(installer.status()) }
-    var installing by remember { mutableStateOf(false) }
     var checkingHealth by remember { mutableStateOf(false) }
-    var progress by remember { mutableStateOf<AlpineInstallProgress?>(null) }
-    var resultMessage by remember { mutableStateOf<String?>(null) }
     var health by remember { mutableStateOf<AlpineEnvironmentHealth?>(null) }
     var apkAnalysisReady by remember { mutableStateOf(apkAnalysisInstaller.isReady()) }
+    var apkAnalysisInstalling by remember { mutableStateOf(false) }
     var apkAnalysisProgress by remember { mutableStateOf<ApkAnalysisInstallProgress?>(null) }
     var apkAnalysisResultMessage by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(session.running, session.resultMessage) {
+        if (!session.running) {
+            status = installer.status()
+            apkAnalysisReady = apkAnalysisInstaller.isReady()
+        }
+    }
 
     MiuixScaffoldPage(
         title = stringResource(R.string.ui_linux_tool_environment_314d22),
@@ -78,24 +99,24 @@ internal fun LinuxEnvironmentScreen(
                     .padding(bottom = 12.dp),
             ) {
                 BasicComponent(
-                    title = mirror.displayName(context),
+                    title = mirror.displayName(context, customMirrorUrl),
                     summary = stringResource(R.string.linux_mirror_source_summary),
                     endActions = {
                         TextButton(
                             text = context.getString(
                                 if (mirrorExpanded) R.string.linux_mirror_collapse else R.string.linux_mirror_change,
                             ),
-                            enabled = !installing,
+                            enabled = !session.running,
                             onClick = { mirrorExpanded = !mirrorExpanded },
                         )
                     },
                 )
                 if (mirrorExpanded) {
-                    AlpineMirror.entries.forEach { option ->
+                    AlpineMirror.entries.filter { it != AlpineMirror.CUSTOM }.forEach { option ->
                         val selected = option == mirror
                         BasicComponent(
-                            title = option.displayName(context),
-                            summary = option.baseUrl,
+                            title = option.displayName(context, customMirrorUrl),
+                            summary = mirrorSummary(context, option.baseUrl, latencies[option.baseUrl]),
                             endActions = {
                                 if (selected) {
                                     TextButton(
@@ -105,7 +126,7 @@ internal fun LinuxEnvironmentScreen(
                                 } else {
                                     TextButton(
                                         text = context.getString(R.string.linux_mirror_apply),
-                                        enabled = !installing,
+                                        enabled = !session.running,
                                         onClick = {
                                             mirrorExpanded = false
                                             coroutineScope.launch {
@@ -118,8 +139,93 @@ internal fun LinuxEnvironmentScreen(
                             },
                         )
                     }
+                    val customSelected = mirror == AlpineMirror.CUSTOM
+                    BasicComponent(
+                        title = AlpineMirror.CUSTOM.displayName(context, customMirrorUrl),
+                        summary = mirrorSummary(
+                            context,
+                            customMirrorUrl ?: context.getString(R.string.linux_mirror_custom_placeholder),
+                            customMirrorUrl?.let { latencies[it] },
+                        ),
+                        endActions = {
+                            if (customSelected) {
+                                TextButton(
+                                    text = context.getString(R.string.linux_mirror_selected),
+                                    onClick = {},
+                                )
+                            } else {
+                                TextButton(
+                                    text = context.getString(R.string.linux_mirror_apply),
+                                    enabled = !session.running,
+                                    onClick = {
+                                        mirrorExpanded = false
+                                        coroutineScope.launch {
+                                            SettingsDataStore.setAlpineMirror(AlpineMirror.CUSTOM)
+                                            mirror = AlpineMirror.CUSTOM
+                                        }
+                                    },
+                                )
+                            }
+                        },
+                    )
+                    TextField(
+                        value = customMirrorDraft,
+                        onValueChange = { customMirrorDraft = it },
+                        label = context.getString(R.string.linux_mirror_custom_hint),
+                        useLabelAsPlaceholder = true,
+                        enabled = !session.running,
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                    )
+                    BasicComponent(
+                        title = stringResource(R.string.linux_mirror_custom_save_hint),
+                        endActions = {
+                            TextButton(
+                                text = context.getString(R.string.linux_mirror_apply),
+                                enabled = !session.running && customMirrorDraft.isNotBlank(),
+                                onClick = {
+                                    coroutineScope.launch {
+                                        SettingsDataStore.setCustomAlpineMirrorUrl(customMirrorDraft)
+                                        SettingsDataStore.setAlpineMirror(AlpineMirror.CUSTOM)
+                                        customMirrorUrl = customMirrorDraft
+                                        mirror = AlpineMirror.CUSTOM
+                                    }
+                                },
+                            )
+                        },
+                    )
                     BasicComponent(
                         title = stringResource(R.string.linux_mirror_switch_hint),
+                        endActions = {
+                            TextButton(
+                                text = if (latencyTesting) {
+                                    context.getString(R.string.linux_mirror_latency_testing)
+                                } else {
+                                    context.getString(R.string.linux_mirror_latency_test)
+                                },
+                                enabled = !latencyTesting && !session.running,
+                                onClick = {
+                                    if (latencyTesting) return@TextButton
+                                    coroutineScope.launch {
+                                        latencyTesting = true
+                                        val candidates = buildList {
+                                            addAll(
+                                                AlpineMirror.entries
+                                                    .filter { it != AlpineMirror.CUSTOM }
+                                                    .map { it.baseUrl },
+                                            )
+                                            customMirrorDraft.trim().takeIf {
+                                                it.isNotBlank() && it.startsWith("http")
+                                            }?.let { add(it.trimEnd('/')) }
+                                        }
+                                        latencies = AlpineMirrorLatencyProbe.probe(candidates)
+                                        latencyTesting = false
+                                    }
+                                },
+                            )
+                        },
                     )
                 }
             }
@@ -134,42 +240,31 @@ internal fun LinuxEnvironmentScreen(
             ) {
                 BasicComponent(
                     title = status.title(context),
-                    summary = progress?.summary(context) ?: status.summary(context),
+                    summary = session.progress?.summary(context) ?: status.summary(context),
                     endActions = {
                         TextButton(
                             text = when {
-                                installing -> context.getString(R.string.linux_installing)
+                                session.running -> context.getString(R.string.linux_installing)
                                 status.state == AlpineEnvironmentState.READY -> context.getString(R.string.linux_reinstall_tools)
                                 status.state == AlpineEnvironmentState.BASE_READY && status.version != null -> context.getString(R.string.linux_upgrade_tools)
                                 status.state == AlpineEnvironmentState.BASE_READY -> context.getString(R.string.linux_continue_installation)
                                 else -> context.getString(R.string.linux_download_install)
                             },
-                            enabled = !installing,
+                            enabled = !session.running,
                             onClick = {
-                                if (installing) return@TextButton
-                                installing = true
-                                resultMessage = null
-                                coroutineScope.launch {
-                                    val forceToolInstall = status.state == AlpineEnvironmentState.READY
-                                    val result = installer.install(forceToolInstall = forceToolInstall) { update ->
-                                        withContext(Dispatchers.Main.immediate) {
-                                            progress = update
-                                        }
-                                    }
-                                    status = installer.status()
-                                    apkAnalysisReady = apkAnalysisInstaller.isReady()
-                                    health = null
-                                    progress = null
-                                    installing = false
-                                    resultMessage = result.toMessage(context)
-                                }
+                                if (session.running) return@TextButton
+                                health = null
+                                AlpineEnvironmentController.startInstall(
+                                    context.applicationContext,
+                                    forceToolInstall = status.state == AlpineEnvironmentState.READY,
+                                )
                             },
                         )
                     },
                 )
-                if (installing && progress != null) {
+                if (session.running && session.progress != null) {
                     InstallLinearProgress(
-                        progress = progress?.progressFraction(),
+                        progress = session.progress?.progressFraction(),
                     )
                 }
             }
@@ -190,29 +285,20 @@ internal fun LinuxEnvironmentScreen(
                             val repairNeeded = health?.healthy == false
                             TextButton(
                                 text = when {
-                                    installing -> context.getString(R.string.linux_busy)
+                                    session.running -> context.getString(R.string.linux_busy)
                                     checkingHealth -> context.getString(R.string.linux_checking)
                                     repairNeeded -> context.getString(R.string.linux_repair)
                                     else -> context.getString(R.string.linux_check)
                                 },
-                                enabled = !checkingHealth && !installing,
+                                enabled = !checkingHealth && !session.running,
                                 onClick = {
-                                    if (checkingHealth || installing) return@TextButton
+                                    if (checkingHealth || session.running) return@TextButton
                                     if (repairNeeded) {
-                                        installing = true
                                         health = null
-                                        resultMessage = null
-                                        coroutineScope.launch {
-                                            val result = installer.install(forceToolInstall = true) { update ->
-                                                withContext(Dispatchers.Main.immediate) {
-                                                    progress = update
-                                                }
-                                            }
-                                            status = installer.status()
-                                            progress = null
-                                            installing = false
-                                            resultMessage = result.toMessage(context)
-                                        }
+                                        AlpineEnvironmentController.startInstall(
+                                            context.applicationContext,
+                                            forceToolInstall = true,
+                                        )
                                     } else {
                                         checkingHealth = true
                                         coroutineScope.launch {
@@ -247,13 +333,13 @@ internal fun LinuxEnvironmentScreen(
                             TextButton(
                                 text = when {
                                     apkAnalysisReady -> context.getString(R.string.linux_installed)
-                                    installing -> context.getString(R.string.linux_installing)
+                                    apkAnalysisInstalling -> context.getString(R.string.linux_installing)
                                     else -> context.getString(R.string.linux_install)
                                 },
-                                enabled = !installing && !apkAnalysisReady,
+                                enabled = !apkAnalysisInstalling && !session.running && !apkAnalysisReady,
                                 onClick = {
-                                    if (installing || apkAnalysisReady) return@TextButton
-                                    installing = true
+                                    if (apkAnalysisInstalling || session.running || apkAnalysisReady) return@TextButton
+                                    apkAnalysisInstalling = true
                                     apkAnalysisResultMessage = null
                                     coroutineScope.launch {
                                         val result = apkAnalysisInstaller.install { update ->
@@ -263,14 +349,14 @@ internal fun LinuxEnvironmentScreen(
                                         }
                                         apkAnalysisReady = apkAnalysisInstaller.isReady()
                                         apkAnalysisProgress = null
-                                        installing = false
+                                        apkAnalysisInstalling = false
                                         apkAnalysisResultMessage = result.toMessage(context)
                                     }
                                 },
                             )
                         },
                     )
-                    if (installing && apkAnalysisProgress != null) {
+                    if (apkAnalysisInstalling && apkAnalysisProgress != null) {
                         InstallLinearProgress(
                             progress = apkAnalysisProgress?.progressFraction(),
                         )
@@ -291,7 +377,7 @@ internal fun LinuxEnvironmentScreen(
             }
         }
 
-        resultMessage?.let { message ->
+        session.resultMessage?.let { message ->
             item(key = "result-card") {
                 Card(
                     modifier = Modifier
@@ -339,14 +425,24 @@ internal fun LinuxEnvironmentScreen(
     }
 }
 
-private fun AlpineMirror.displayName(context: Context): String = context.getString(
-    when (this) {
-        AlpineMirror.OFFICIAL -> R.string.linux_mirror_official
-        AlpineMirror.ALIYUN -> R.string.linux_mirror_aliyun
-        AlpineMirror.TUNA -> R.string.linux_mirror_tuna
-        AlpineMirror.USTC -> R.string.linux_mirror_ustc
-    },
-)
+private fun AlpineMirror.displayName(context: Context, customUrl: String?): String = when (this) {
+    AlpineMirror.OFFICIAL -> context.getString(R.string.linux_mirror_official)
+    AlpineMirror.ALIYUN -> context.getString(R.string.linux_mirror_aliyun)
+    AlpineMirror.TUNA -> context.getString(R.string.linux_mirror_tuna)
+    AlpineMirror.USTC -> context.getString(R.string.linux_mirror_ustc)
+    AlpineMirror.CUSTOM -> customUrl?.takeIf(String::isNotBlank)
+        ?.let { context.getString(R.string.linux_mirror_custom_with_url, it) }
+        ?: context.getString(R.string.linux_mirror_custom)
+}
+
+private fun mirrorSummary(context: Context, baseUrl: String, latency: Long?): String {
+    val latencyText = when {
+        latency == null -> context.getString(R.string.linux_mirror_latency_unreachable)
+        latency < 0L -> ""
+        else -> context.getString(R.string.linux_mirror_latency_ms, latency)
+    }
+    return if (latencyText.isEmpty()) baseUrl else "$baseUrl · $latencyText"
+}
 
 private fun AlpineEnvironmentStatus.title(context: Context): String = when (state) {
     AlpineEnvironmentState.NOT_INSTALLED -> context.getString(R.string.linux_not_installed)
@@ -455,16 +551,6 @@ private fun ApkAnalysisInstallProgress.summary(context: Context): String {
     return context.getString(R.string.linux_tool_progress_percent, stageName, name, percent)
 }
 
-private fun AlpineInstallResult.toMessage(context: Context): String = when (this) {
-    AlpineInstallResult.AlreadyReady -> context.getString(R.string.linux_already_ready)
-    is AlpineInstallResult.Installed -> context.getString(R.string.linux_install_complete, version)
-    is AlpineInstallResult.UnsupportedAbi -> context.getString(R.string.linux_unsupported_abi, abi)
-    AlpineInstallResult.RootUnavailable -> context.getString(R.string.linux_root_unavailable)
-    AlpineInstallResult.BusyBoxUnavailable -> context.getString(R.string.linux_busybox_unavailable)
-    AlpineInstallResult.EnvironmentUnavailable -> context.getString(R.string.linux_environment_unavailable)
-    is AlpineInstallResult.Failed -> context.getString(R.string.linux_stage_failed, stage.displayName(context))
-}
-
 private fun ApkAnalysisInstallResult.toMessage(context: Context): String = when (this) {
     ApkAnalysisInstallResult.AlreadyReady -> context.getString(R.string.linux_apk_analysis_ready)
     ApkAnalysisInstallResult.EnvironmentNotReady -> context.getString(R.string.linux_base_required)
@@ -477,26 +563,3 @@ private fun ApkAnalysisInstallResult.toMessage(context: Context): String = when 
     ApkAnalysisInstallResult.Installed -> context.getString(R.string.linux_apk_analysis_installed)
     is ApkAnalysisInstallResult.Failed -> context.getString(R.string.linux_apk_stage_failed, stage.displayName(context))
 }
-
-private fun AlpineInstallStage.displayName(context: Context): String = context.getString(
-    when (this) {
-        AlpineInstallStage.CHECKING -> R.string.linux_stage_checking
-        AlpineInstallStage.DOWNLOADING -> R.string.linux_stage_downloading
-        AlpineInstallStage.EXTRACTING -> R.string.linux_stage_extracting
-        AlpineInstallStage.UPDATING_INDEX -> R.string.linux_stage_updating_index
-        AlpineInstallStage.INSTALLING_TOOLS -> R.string.linux_stage_installing_tools
-        AlpineInstallStage.COMPLETE -> R.string.linux_stage_complete
-    },
-)
-
-private fun ApkAnalysisInstallStage.displayName(context: Context): String = context.getString(
-    when (this) {
-        ApkAnalysisInstallStage.CHECKING -> R.string.linux_apk_stage_checking
-        ApkAnalysisInstallStage.DOWNLOADING -> R.string.linux_apk_stage_downloading
-        ApkAnalysisInstallStage.PREPARING -> R.string.linux_apk_stage_preparing
-        ApkAnalysisInstallStage.INSTALLING_JAVA -> R.string.linux_apk_stage_installing_java
-        ApkAnalysisInstallStage.ACTIVATING -> R.string.linux_apk_stage_activating
-        ApkAnalysisInstallStage.VERIFYING -> R.string.linux_apk_stage_verifying
-        ApkAnalysisInstallStage.COMPLETE -> R.string.linux_apk_stage_complete
-    },
-)

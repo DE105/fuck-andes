@@ -88,8 +88,10 @@ internal sealed interface AlpineInstallResult {
 internal class AlpineEnvironmentInstaller(
     private val context: Context,
     private val mirror: AlpineMirror = AlpineMirror.OFFICIAL,
+    customMirrorUrl: String? = null,
     httpClient: OkHttpClient = VerifiedArtifactDownloader.defaultHttpClient(),
 ) {
+    private val mirrorBaseUrl: String = mirror.effectiveBaseUrl(customMirrorUrl)
     private val artifactDownloader = VerifiedArtifactDownloader(httpClient)
     fun status(): AlpineEnvironmentStatus {
         val rootfs = AlpineEnvironmentPaths.rootfsDir(context)
@@ -163,7 +165,7 @@ internal class AlpineEnvironmentInstaller(
         if (!forceToolInstall && status().state == AlpineEnvironmentState.READY) {
             return@withContext AlpineInstallResult.AlreadyReady
         }
-        val artifact = artifactForAbis(Build.SUPPORTED_ABIS.toList(), mirror.baseUrl)
+        val artifact = artifactForAbis(Build.SUPPORTED_ABIS.toList(), mirrorBaseUrl)
             ?: return@withContext AlpineInstallResult.UnsupportedAbi(
                 Build.SUPPORTED_ABIS.firstOrNull().orEmpty().ifBlank { "unknown" },
             )
@@ -181,9 +183,18 @@ internal class AlpineEnvironmentInstaller(
 
         val rootfs = AlpineEnvironmentPaths.rootfsDir(context)
         if (!AlpineEnvironmentPaths.rootfsReady(rootfs.absolutePath)) {
-            val archive = File(context.cacheDir, artifact.fileName + ".download")
-            try {
-                onProgress(AlpineInstallProgress(AlpineInstallStage.DOWNLOADING))
+            val archive = AlpineEnvironmentPaths.cachedArtifact(context, artifact.fileName)
+            onProgress(AlpineInstallProgress(AlpineInstallStage.DOWNLOADING))
+            val cacheHit = artifactDownloader.verify(artifact, archive)
+            if (cacheHit) {
+                onProgress(
+                    AlpineInstallProgress(
+                        stage = AlpineInstallStage.DOWNLOADING,
+                        downloadedBytes = artifact.sizeBytes,
+                        totalBytes = artifact.sizeBytes,
+                    ),
+                )
+            } else {
                 val downloaded = artifactDownloader.download(artifact, archive) { downloadedBytes, totalBytes ->
                     onProgress(
                         AlpineInstallProgress(
@@ -196,14 +207,12 @@ internal class AlpineEnvironmentInstaller(
                 if (!downloaded) {
                     return@withContext AlpineInstallResult.Failed(AlpineInstallStage.DOWNLOADING)
                 }
-                coroutineContext.ensureActive()
-                onProgress(AlpineInstallProgress(AlpineInstallStage.EXTRACTING))
-                val extracted = installRootfs(artifact, archive, rootfs)
-                if (!extracted) {
-                    return@withContext AlpineInstallResult.Failed(AlpineInstallStage.EXTRACTING)
-                }
-            } finally {
-                archive.delete()
+            }
+            coroutineContext.ensureActive()
+            onProgress(AlpineInstallProgress(AlpineInstallStage.EXTRACTING))
+            val extracted = installRootfs(artifact, archive, rootfs)
+            if (!extracted) {
+                return@withContext AlpineInstallResult.Failed(AlpineInstallStage.EXTRACTING)
             }
         }
 
@@ -280,8 +289,8 @@ internal class AlpineEnvironmentInstaller(
             nameserver 8.8.8.8
             ETA_RESOLV_EOF
             cat > "${'$'}eta_temporary/etc/apk/repositories" <<'ETA_REPOSITORIES_EOF'
-            ${mirror.baseUrl}/v3.24/main
-            ${mirror.baseUrl}/v3.24/community
+            ${mirrorBaseUrl}/v3.24/main
+            ${mirrorBaseUrl}/v3.24/community
             ETA_REPOSITORIES_EOF
             printf ${shellQuote(markerBody)} > "${'$'}eta_temporary/${AlpineEnvironmentPaths.READY_MARKER}"
             "${'$'}eta_busybox" chmod 0644 "${'$'}eta_temporary/${AlpineEnvironmentPaths.READY_MARKER}"

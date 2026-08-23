@@ -54,6 +54,22 @@ class AlpineEnvironmentInstallerTest {
         assertEquals(AlpineMirror.ALIYUN, AlpineMirror.fromPersistedValue("aliyun"))
         assertEquals(AlpineMirror.TUNA, AlpineMirror.fromPersistedValue("tuna"))
         assertEquals(AlpineMirror.USTC, AlpineMirror.fromPersistedValue("ustc"))
+        assertEquals(AlpineMirror.CUSTOM, AlpineMirror.fromPersistedValue("custom"))
+    }
+
+    @Test
+    fun customMirrorFallsBackToOfficialWhenBlankOrInvalid() {
+        assertEquals(AlpineMirror.OFFICIAL.baseUrl, AlpineMirror.CUSTOM.effectiveBaseUrl(null))
+        assertEquals(AlpineMirror.OFFICIAL.baseUrl, AlpineMirror.CUSTOM.effectiveBaseUrl("  "))
+        assertEquals(AlpineMirror.OFFICIAL.baseUrl, AlpineMirror.CUSTOM.effectiveBaseUrl("not a url"))
+        assertEquals(
+            "https://mirrors.example.com/alpine",
+            AlpineMirror.CUSTOM.effectiveBaseUrl("https://mirrors.example.com/alpine/"),
+        )
+        assertEquals(
+            AlpineMirror.ALIYUN.baseUrl,
+            AlpineMirror.ALIYUN.effectiveBaseUrl("https://mirrors.example.com/alpine"),
+        )
     }
 
     @Test

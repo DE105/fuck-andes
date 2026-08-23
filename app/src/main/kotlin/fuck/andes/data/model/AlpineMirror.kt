@@ -19,7 +19,18 @@ enum class AlpineMirror(
 
     @SerialName("ustc")
     USTC("ustc", "https://mirrors.ustc.edu.cn/alpine"),
+
+    @SerialName("custom")
+    CUSTOM("custom", ""),
     ;
+
+    fun effectiveBaseUrl(customUrl: String?): String {
+        if (this != CUSTOM) return baseUrl
+        val normalized = customUrl?.trim()?.trimEnd('/')
+        return normalized
+            ?.takeIf { it.isNotBlank() && it.startsWith("http") }
+            ?: OFFICIAL.baseUrl
+    }
 
     companion object {
         fun fromPersistedValue(value: String?): AlpineMirror =

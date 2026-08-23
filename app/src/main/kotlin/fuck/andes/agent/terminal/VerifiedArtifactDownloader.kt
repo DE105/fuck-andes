@@ -4,6 +4,8 @@ import fuck.andes.core.AndroidAgentLogger
 import fuck.andes.core.AgentLogger
 import fuck.andes.core.safeLogType
 import java.io.File
+import java.io.FileOutputStream
+import java.net.HttpURLConnection
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.coroutineContext
@@ -49,7 +51,13 @@ internal class VerifiedArtifactDownloader(
         attempt: Int,
         onProgress: suspend (downloadedBytes: Long, totalBytes: Long) -> Unit,
     ): Boolean {
-        val request = Request.Builder().url(url).get().build()
+        val existingBytes = if (target.isFile) target.length() else 0L
+        val resumeFrom = if (existingBytes in 1 until artifact.sizeBytes) existingBytes else 0L
+        val requestBuilder = Request.Builder().url(url)
+        if (resumeFrom > 0L) {
+            requestBuilder.header("Range", "bytes=$resumeFrom-")
+        }
+        val request = requestBuilder.get().build()
         val valid = try {
             httpClient.newCall(request).execute().use responseUse@ { response ->
                 if (!response.isSuccessful) {
@@ -59,13 +67,19 @@ internal class VerifiedArtifactDownloader(
                     )
                     return@responseUse false
                 }
+                val appendMode = resumeFrom > 0L && response.code == HttpURLConnection.HTTP_PARTIAL
                 val declaredLength = response.body.contentLength()
-                if (declaredLength > artifact.sizeBytes) return@responseUse false
-                val digest = MessageDigest.getInstance("SHA-256")
-                var bytesRead = 0L
-                var lastReported = 0L
+                if (declaredLength > artifact.sizeBytes - resumeFrom) return@responseUse false
+                val digest = if (appendMode) {
+                    digestOfExisting(target) ?: return@responseUse false
+                } else {
+                    MessageDigest.getInstance("SHA-256")
+                }
+                var bytesRead = if (appendMode) resumeFrom else 0L
+                var lastReported = bytesRead
                 var tooLarge = false
-                target.outputStream().buffered().use { output ->
+                val output = if (appendMode) FileOutputStream(target, true) else FileOutputStream(target)
+                output.buffered().use { buffered ->
                     response.body.byteStream().use { input ->
                         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                         while (true) {
@@ -78,7 +92,7 @@ internal class VerifiedArtifactDownloader(
                                 break
                             }
                             digest.update(buffer, 0, count)
-                            output.write(buffer, 0, count)
+                            buffered.write(buffer, 0, count)
                             if (bytesRead - lastReported >= PROGRESS_INTERVAL_BYTES) {
                                 lastReported = bytesRead
                                 onProgress(bytesRead, artifact.sizeBytes)
@@ -91,7 +105,7 @@ internal class VerifiedArtifactDownloader(
                 val accepted = bytesRead == artifact.sizeBytes && actualSha256 == artifact.sha256
                 logger.info(
                     "Verified artifact action=download id=${artifact.id} attempt=$attempt " +
-                        "outcome=${if (accepted) "succeeded" else "rejected"} bytes=$bytesRead",
+                        "outcome=${if (accepted) "succeeded" else "rejected"} bytes=$bytesRead resume=$resumeFrom",
                 )
                 accepted
             }
@@ -106,6 +120,19 @@ internal class VerifiedArtifactDownloader(
         }
         return valid
     }
+
+    private fun digestOfExisting(file: File): MessageDigest? = runCatching {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().buffered().use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                digest.update(buffer, 0, count)
+            }
+        }
+        digest
+    }.getOrNull()
 
     fun verify(artifact: VerifiedArtifact, file: File): Boolean {
         if (!file.isFile || file.length() != artifact.sizeBytes) return false

@@ -2,6 +2,21 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.6.5] - 2026-08-23
+
+### 新增
+
+- **自定义镜像源**：支持输入任意镜像根地址并切换到自定义镜像源；内置官方、阿里云、清华大学 TUNA、中科大 USTC 镜像。
+- **镜像延迟测速**：一键测试各镜像源的包索引请求延迟（毫秒），不可达的源单独标记，便于选择最优源。
+- **本地缓存与断点续传**：校验通过后的 minirootfs 归档持久缓存到应用私有目录，重装/重新下载时命中缓存直接跳过下载；下载器支持 HTTP Range 断点续传，意外中断后从断点继续，无需从头下载。
+- **安装不受页面退出影响**：Linux 工具安装/升级任务改为全局协程执行，退出「Linux 工具环境」页面后安装继续运行；重新进入页面可观察到进行中的进度或最终结果，无需重新下载。
+
+### 变更
+
+- 新增 `AlpineEnvironmentController` 全局安装协调器，会话状态通过 `StateFlow` 暴露给页面。
+- 新增 `AlpineMirrorLatencyProbe` 延迟测速探针；`VerifiedArtifactDownloader` 支持 Range 续传。
+- `AlpineEnvironmentInstaller` 支持自定义镜像根地址；归档缓存目录迁移至 `filesDir` 持久目录。
+
 ## [2.6.4] - 2026-08-23
 
 ### 新增

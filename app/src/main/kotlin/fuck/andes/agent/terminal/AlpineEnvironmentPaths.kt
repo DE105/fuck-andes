@@ -20,6 +20,9 @@ internal object AlpineEnvironmentPaths {
     fun artifactDir(context: Context): File =
         File(context.cacheDir, "linux-installer/artifacts")
 
+    fun cachedArtifact(context: Context, fileName: String): File =
+        File(context.filesDir, "terminal/alpine/cache/$fileName")
+
     fun profileStagingDir(context: Context, profile: String): File =
         File(context.cacheDir, "linux-installer/profiles/$profile.installing")
 

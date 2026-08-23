@@ -9,4 +9,5 @@ data class Settings(
     val memoryEnabled: Boolean = true,
     val appearance: AppearanceSettings = AppearanceSettings(),
     val alpineMirror: AlpineMirror = AlpineMirror.OFFICIAL,
+    val customAlpineMirrorUrl: String? = null,
 )

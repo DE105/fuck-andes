@@ -885,6 +885,16 @@
   <string name="linux_mirror_aliyun">Aliyun</string>
   <string name="linux_mirror_tuna">Tsinghua TUNA</string>
   <string name="linux_mirror_ustc">USTC</string>
+  <string name="linux_mirror_custom">Custom mirror</string>
+  <string name="linux_mirror_custom_with_url">Custom (%1$s)</string>
+  <string name="linux_mirror_custom_placeholder">Not configured yet</string>
+  <string name="linux_mirror_custom_hint">Mirror root URL, e.g. https://mirrors.example.com/alpine</string>
+  <string name="linux_mirror_custom_save_hint">Save the URL above and switch to the custom mirror</string>
+  <string name="linux_mirror_latency_test">Test latency</string>
+  <string name="linux_mirror_latency_testing">Testing…</string>
+  <string name="linux_mirror_latency_ms">%1$d ms</string>
+  <string name="linux_mirror_latency_unreachable">Unreachable</string>
+  <string name="linux_install_unexpected_error">Installation stopped unexpectedly. Try again</string>
   <string name="linux_not_checked">Not checked</string>
   <string name="linux_health_summary">Check core commands, workspace mount, shared storage, and free space</string>
   <string name="linux_busy">Busy</string>
