@@ -44,6 +44,7 @@ jobs:
         run: sdkmanager --channel=3 "platforms;android-37.0"
 
       - name: 还原发布证书
+        id: signing
         env:
           ETA_RELEASE_KEYSTORE_BASE64: ${{ secrets.ETA_RELEASE_KEYSTORE_BASE64 }}
           ETA_RELEASE_STORE_PASSWORD: ${{ secrets.ETA_RELEASE_STORE_PASSWORD }}
@@ -54,9 +55,11 @@ jobs:
                 -z "$ETA_RELEASE_STORE_PASSWORD" ||
                 -z "$ETA_RELEASE_KEY_ALIAS" ||
                 -z "$ETA_RELEASE_KEY_PASSWORD" ]]; then
-            echo "::error::缺少 Release 签名 Secrets，请检查仓库的 Actions Secrets。"
-            exit 1
+            echo "::warning::未配置 Release 签名 Secrets，本次仅构建并发布 Debug APK。"
+            echo "has_release_signing=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          echo "has_release_signing=true" >> "$GITHUB_OUTPUT"
           printf '%s' "$ETA_RELEASE_KEYSTORE_BASE64" \
             | base64 --decode \
             > "$RUNNER_TEMP/eta-release.jks"
@@ -67,38 +70,45 @@ jobs:
           ETA_RELEASE_STORE_PASSWORD: ${{ secrets.ETA_RELEASE_STORE_PASSWORD }}
           ETA_RELEASE_KEY_ALIAS: ${{ secrets.ETA_RELEASE_KEY_ALIAS }}
           ETA_RELEASE_KEY_PASSWORD: ${{ secrets.ETA_RELEASE_KEY_PASSWORD }}
-        run: >-
-          ./gradlew --no-daemon --no-configuration-cache
-          :app:assembleDebug :app:assembleRelease
+          HAS_RELEASE_SIGNING: ${{ steps.signing.outputs.has_release_signing }}
+        run: |
+          if [[ "$HAS_RELEASE_SIGNING" == "true" ]]; then
+            ./gradlew --no-daemon --no-configuration-cache \
+              :app:assembleDebug :app:assembleRelease
+          else
+            ./gradlew --no-daemon --no-configuration-cache \
+              :app:assembleDebug
+          fi
 
       - name: 验证并整理 APK
         id: apk
         run: |
           debug_apk="app/build/outputs/apk/debug/app-debug.apk"
-          release_apk="app/build/outputs/apk/release/app-release.apk"
           output_dir="$RUNNER_TEMP/apks"
-          apksigner_path="$(find "$ANDROID_HOME/build-tools" \
-            -type f -name apksigner | sort -V | tail -n 1)"
-
           if [[ ! -f "$debug_apk" ]]; then
             echo "::error::未找到 Debug APK。"
             exit 1
           fi
-          if [[ ! -f "$release_apk" ]]; then
-            echo "::error::未找到 Release APK。"
-            exit 1
-          fi
-          if [[ -z "$apksigner_path" ]]; then
-            echo "::error::未找到 apksigner。"
-            exit 1
-          fi
-
-          "$apksigner_path" verify "$release_apk"
           mkdir -p "$output_dir"
           cp "$debug_apk" "$output_dir/app-debug.apk"
-          cp "$release_apk" "$output_dir/app-release.apk"
           echo "debug_path=$output_dir/app-debug.apk" >> "$GITHUB_OUTPUT"
-          echo "release_path=$output_dir/app-release.apk" >> "$GITHUB_OUTPUT"
+
+          if [[ "${{ steps.signing.outputs.has_release_signing }}" == "true" ]]; then
+            release_apk="app/build/outputs/apk/release/app-release.apk"
+            apksigner_path="$(find "$ANDROID_HOME/build-tools" \
+              -type f -name apksigner | sort -V | tail -n 1)"
+            if [[ ! -f "$release_apk" ]]; then
+              echo "::error::未找到 Release APK。"
+              exit 1
+            fi
+            if [[ -z "$apksigner_path" ]]; then
+              echo "::error::未找到 apksigner。"
+              exit 1
+            fi
+            "$apksigner_path" verify "$release_apk"
+            cp "$release_apk" "$output_dir/app-release.apk"
+            echo "release_path=$output_dir/app-release.apk" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: 上传 Debug APK
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -109,6 +119,7 @@ jobs:
           retention-days: 14
 
       - name: 上传 Release APK
+        if: steps.signing.outputs.has_release_signing == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           path: ${{ steps.apk.outputs.release_path }}
@@ -136,14 +147,16 @@ jobs:
             CHANGELOG.md > "$notes_file" && [[ -s "$notes_file" ]]; then
             echo "已从 CHANGELOG.md 提取 Release 说明。"
           else
-            printf 'Eta %s 正式版。\n\n自动构建的 Debug 与 Release 安装包见本页 Assets。\n' "$version_name" > "$notes_file"
+            printf 'Eta %s 安装包。\n\n本次由云端自动构建并发布。\n' "$version_name" > "$notes_file"
           fi
+
+          assets=()
+          [[ -f "$apk_dir/app-debug.apk" ]] && assets+=("$apk_dir/app-debug.apk")
+          [[ -f "$apk_dir/app-release.apk" ]] && assets+=("$apk_dir/app-release.apk")
 
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "Release $tag 已存在，更新资产与说明。"
-            gh release upload "$tag" \
-              "$apk_dir/app-debug.apk" "$apk_dir/app-release.apk" \
-              --clobber
+            gh release upload "$tag" "${assets[@]}" --clobber
             gh release edit "$tag" \
               --title "Eta ${version_name}" \
               --notes-file "$notes_file"
@@ -151,5 +164,5 @@ jobs:
             gh release create "$tag" \
               --title "Eta ${version_name}" \
               --notes-file "$notes_file" \
-              "$apk_dir/app-debug.apk" "$apk_dir/app-release.apk"
+              "${assets[@]}"
           fi
