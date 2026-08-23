@@ -515,7 +515,7 @@ internal object InstallerShellRunner {
         }
         withContext(Dispatchers.IO) { runCatching { process.outputStream.close() } }
 
-        try {
+        return try {
             val deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds)
             var timedOut = false
             var reachedEof = false
