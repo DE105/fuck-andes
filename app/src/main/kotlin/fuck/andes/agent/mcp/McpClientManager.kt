@@ -5,6 +5,7 @@ import io.modelcontextprotocol.kotlin.sdk.client.Client
 import io.modelcontextprotocol.kotlin.sdk.client.SseClientTransport
 import io.modelcontextprotocol.kotlin.sdk.client.StreamableHttpClientTransport
 import io.modelcontextprotocol.kotlin.sdk.shared.Transport
+import io.modelcontextprotocol.kotlin.sdk.shared.TransportSendOptions
 import io.modelcontextprotocol.kotlin.sdk.types.AudioContent
 import io.modelcontextprotocol.kotlin.sdk.types.ContentBlock
 import io.modelcontextprotocol.kotlin.sdk.types.Implementation
@@ -209,11 +210,11 @@ internal object McpClientManager {
     private class DebugTransport(
         private val delegate: Transport,
     ) : Transport by delegate {
-        override suspend fun send(message: JSONRPCMessage) {
+        override suspend fun send(message: JSONRPCMessage, options: TransportSendOptions?) {
             runCatching {
-                Log.d(TAG, "OUTGOING ${message.method}: ${McpJson.encodeToString(message)}")
+                Log.d(TAG, "OUTGOING: ${McpJson.encodeToString(message)}")
             }
-            delegate.send(message)
+            delegate.send(message, options)
         }
     }
 
