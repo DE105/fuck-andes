@@ -6,6 +6,7 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.SystemClock
+import android.util.Log
 import fuck.andes.agent.browser.AgentBrowserSession
 import fuck.andes.agent.device.RootShellDeviceController
 import fuck.andes.agent.device.BoundedRootCommandExecutor
@@ -857,6 +858,7 @@ internal class AgentLocalTools(
                 }
             }
         }.getOrElse { throwable ->
+            Log.w(TAG, "MCP 工具调用失败 ${toolCall.name} 参数=$args: ${throwable.message}")
             errorResult(
                 "MCP_CALL_FAILED",
                 throwable.message ?: throwable.javaClass.simpleName,
@@ -1345,6 +1347,7 @@ internal class AgentLocalTools(
     )
 
     private companion object {
+        const val TAG = "AgentLocalTools"
         val DEVICE_DIRECT_TOOL_NAMES = setOf(
             "set_alarm",
             "set_timer",

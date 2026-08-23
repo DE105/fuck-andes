@@ -106,11 +106,18 @@ internal object McpClientManager {
 
     suspend fun discoverServer(config: McpServerConfig): List<McpToolDescriptor> {
         val session = sessionFor(config)
-        return session.client.listTools().tools.map { tool -> tool.toDescriptor(config) }
+        val tools = session.client.listTools().tools
+        Log.d(
+            TAG,
+            "发现 ${config.name} 工具: " +
+                tools.joinToString { tool -> "${tool.name} schema=${tool.inputSchema}" },
+        )
+        return tools.map { tool -> tool.toDescriptor(config) }
     }
 
     /** 调用某服务器的工具并返回文本化结果。 */
     suspend fun invoke(config: McpServerConfig, toolName: String, arguments: JSONObject): McpCallResult {
+        Log.d(TAG, "调用工具 ${config.name}/$toolName 参数: $arguments")
         val session = sessionFor(config)
         val result = withTimeout(config.effectiveTimeoutMs) {
             session.client.callTool(
