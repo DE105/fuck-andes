@@ -314,6 +314,7 @@ internal class AlpineEnvironmentInstaller(
         onProgress: suspend (AlpineInstallProgress) -> Unit,
     ): Boolean {
         onProgress(AlpineInstallProgress(AlpineInstallStage.UPDATING_INDEX))
+        writeApkRepositories(rootfs)
         val indexResult = InstallerShellRunner.run(
             command = "apk update",
             timeoutSeconds = COMMON_TOOLS_TIMEOUT_SECONDS,
@@ -362,6 +363,24 @@ internal class AlpineEnvironmentInstaller(
                 "exitCode=${result.exitCode} outputChars=${result.output.length}",
         )
         return result.exitCode == 0 && AlpineEnvironmentPaths.commonToolsReady(rootfs.absolutePath)
+    }
+
+    private fun writeApkRepositories(rootfs: File) {
+        runCatching {
+            val repositories = File(rootfs, "etc/apk/repositories")
+            repositories.parentFile?.mkdirs()
+            repositories.writeText(
+                buildString {
+                    append(mirrorBaseUrl).append("/v3.24/main\n")
+                    append(mirrorBaseUrl).append("/v3.24/community\n")
+                },
+            )
+        }.onFailure { throwable ->
+            AndroidAgentLogger.warn(
+                "Alpine environment action=write_repositories outcome=failed " +
+                    "errorType=${throwable.javaClass.simpleName}",
+            )
+        }
     }
 
     private fun readInstalledVersion(rootfs: File): String? =
