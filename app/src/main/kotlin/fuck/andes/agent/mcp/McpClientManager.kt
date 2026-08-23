@@ -9,6 +9,8 @@ import io.modelcontextprotocol.kotlin.sdk.types.AudioContent
 import io.modelcontextprotocol.kotlin.sdk.types.ContentBlock
 import io.modelcontextprotocol.kotlin.sdk.types.Implementation
 import io.modelcontextprotocol.kotlin.sdk.types.ImageContent
+import io.modelcontextprotocol.kotlin.sdk.types.JSONRPCMessage
+import io.modelcontextprotocol.kotlin.sdk.types.McpJson
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import io.modelcontextprotocol.kotlin.sdk.types.Tool
 import io.ktor.client.HttpClient
@@ -20,6 +22,7 @@ import io.ktor.client.request.header
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.encodeToString
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
@@ -118,11 +121,13 @@ internal object McpClientManager {
     /** 调用某服务器的工具并返回文本化结果。 */
     suspend fun invoke(config: McpServerConfig, toolName: String, arguments: JSONObject): McpCallResult {
         Log.d(TAG, "调用工具 ${config.name}/$toolName 参数: $arguments")
+        val argumentsMap = arguments.toArgumentMap()
+        Log.d(TAG, "调用工具 ${config.name}/$toolName map: $argumentsMap")
         val session = sessionFor(config)
         val result = withTimeout(config.effectiveTimeoutMs) {
             session.client.callTool(
                 name = toolName,
-                arguments = arguments.toArgumentMap(),
+                arguments = argumentsMap,
             )
         }
         return McpCallResult(
@@ -174,7 +179,7 @@ internal object McpClientManager {
                     }
                 }
                 val sdkClient = Client(clientInfo)
-                sdkClient.connect(transport)
+                sdkClient.connect(DebugTransport(transport))
                 McpSession(sdkClient, null, httpClient)
             }
             McpTransport.STDIO -> {
@@ -199,6 +204,18 @@ internal object McpClientManager {
                 connectTimeoutMillis = config.effectiveTimeoutMs
             }
         }
+
+    /** 打印实际发出的 JSON-RPC 消息，用于核对 SDK 序列化后的完整请求体。 */
+    private class DebugTransport(
+        private val delegate: Transport,
+    ) : Transport by delegate {
+        override suspend fun send(message: JSONRPCMessage) {
+            runCatching {
+                Log.d(TAG, "OUTGOING ${message.method}: ${McpJson.encodeToString(message)}")
+            }
+            delegate.send(message)
+        }
+    }
 
     private fun HttpRequestBuilder.applyAuth(config: McpServerConfig) {
         if (config.bearerToken.isNotBlank()) {
