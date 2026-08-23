@@ -25,7 +25,7 @@ import org.json.JSONObject
  */
 internal object McpConfigStore {
     private const val STORE_NAME = "fuck_andes_mcp"
-    private const val SERVERS_KEY = "mcp_servers_json"
+    private val SERVERS_KEY = stringPreferencesKey("mcp_servers_json")
     private const val MCP_SERVERS_FIELD = "mcpServers"
 
     private val Context.mcpDataStore: DataStore<Preferences> by preferencesDataStore(name = STORE_NAME)

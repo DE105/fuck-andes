@@ -193,5 +193,7 @@ private fun titleForRoute(route: AppRoute?): String = when (route) {
     is AppRoute.ModelProviders -> stringResource(R.string.route_model_providers)
     is AppRoute.ModelProviderDetail -> stringResource(R.string.route_provider_details)
     is AppRoute.ModelProviderNew -> stringResource(R.string.route_new_provider)
+    is AppRoute.McpServers -> stringResource(R.string.ui_mcp_servers_title_bf7aa)
+    is AppRoute.McpServerEdit -> stringResource(R.string.ui_mcp_edit_server_title_c93d1)
     null -> stringResource(R.string.app_name)
 }

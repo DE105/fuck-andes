@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -110,36 +111,34 @@ internal fun McpServersScreen(
                     )
                 }
             } else {
-                servers.forEach { config ->
-                    item(key = "server_${config.id}") {
-                        Card(
-                            modifier = Modifier
-                                .padding(horizontal = 12.dp)
-                                .padding(bottom = 12.dp),
-                        ) {
-                            BasicComponent(
-                                title = config.name,
-                                summary = buildString {
-                                    append(config.transport.label(context))
-                                    append(" · ")
-                                    append(
-                                        context.getString(
-                                            if (config.enabled) {
-                                                fuck.andes.R.string.ui_mcp_enabled_63197
-                                            } else {
-                                                fuck.andes.R.string.ui_mcp_disabled_d8fea
-                                            },
-                                        ),
-                                    )
-                                },
-                                endActions = {
-                                    TextButton(
-                                        text = context.getString(fuck.andes.R.string.action_edit),
-                                        onClick = { onNavigate(AppRoute.McpServerEdit(config.id)) },
-                                    )
-                                },
-                            )
-                        }
+                items(servers, key = { "server_${it.id}" }) { config ->
+                    Card(
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp)
+                            .padding(bottom = 12.dp),
+                    ) {
+                        BasicComponent(
+                            title = config.name,
+                            summary = buildString {
+                                append(config.transport.label(context))
+                                append(" · ")
+                                append(
+                                    context.getString(
+                                        if (config.enabled) {
+                                            fuck.andes.R.string.ui_mcp_enabled_63197
+                                        } else {
+                                            fuck.andes.R.string.ui_mcp_disabled_d8fea
+                                        },
+                                    ),
+                                )
+                            },
+                            endActions = {
+                                TextButton(
+                                    text = context.getString(fuck.andes.R.string.action_edit),
+                                    onClick = { onNavigate(AppRoute.McpServerEdit(config.id)) },
+                                )
+                            },
+                        )
                     }
                 }
             }

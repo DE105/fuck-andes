@@ -1038,6 +1038,7 @@
   <string name="injected_image_cache_limit">Image reference data is too large to cache safely. Choose the images again or use remote image links</string>
   <string name="injected_image_unreadable">Some images could not be read. Choose the images again and retry</string>
   <string name="ui_mcp_servers_title_bf7aa">MCP servers</string>
+  <string name="ui_mcp_edit_server_title_c93d1">Edit server</string>
   <string name="ui_mcp_enable_tools_501dc">Enable MCP tools</string>
   <string name="ui_mcp_enable_tools_summary_01031">Expose configured MCP server tools to the Agent</string>
   <string name="ui_mcp_add_server_c5e63">Add server</string>
