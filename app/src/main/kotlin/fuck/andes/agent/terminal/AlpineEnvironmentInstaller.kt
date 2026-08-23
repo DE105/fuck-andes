@@ -3,6 +3,7 @@ package fuck.andes.agent.terminal
 import android.content.Context
 import android.os.Build
 import fuck.andes.core.AndroidAgentLogger
+import fuck.andes.data.model.AlpineMirror
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.concurrent.LinkedBlockingQueue
@@ -86,6 +87,7 @@ internal sealed interface AlpineInstallResult {
  */
 internal class AlpineEnvironmentInstaller(
     private val context: Context,
+    private val mirror: AlpineMirror = AlpineMirror.OFFICIAL,
     httpClient: OkHttpClient = VerifiedArtifactDownloader.defaultHttpClient(),
 ) {
     private val artifactDownloader = VerifiedArtifactDownloader(httpClient)
@@ -161,7 +163,7 @@ internal class AlpineEnvironmentInstaller(
         if (!forceToolInstall && status().state == AlpineEnvironmentState.READY) {
             return@withContext AlpineInstallResult.AlreadyReady
         }
-        val artifact = artifactForAbis(Build.SUPPORTED_ABIS.toList())
+        val artifact = artifactForAbis(Build.SUPPORTED_ABIS.toList(), mirror.baseUrl)
             ?: return@withContext AlpineInstallResult.UnsupportedAbi(
                 Build.SUPPORTED_ABIS.firstOrNull().orEmpty().ifBlank { "unknown" },
             )
@@ -278,8 +280,8 @@ internal class AlpineEnvironmentInstaller(
             nameserver 8.8.8.8
             ETA_RESOLV_EOF
             cat > "${'$'}eta_temporary/etc/apk/repositories" <<'ETA_REPOSITORIES_EOF'
-            https://dl-cdn.alpinelinux.org/alpine/v3.24/main
-            https://dl-cdn.alpinelinux.org/alpine/v3.24/community
+            ${mirror.baseUrl}/v3.24/main
+            ${mirror.baseUrl}/v3.24/community
             ETA_REPOSITORIES_EOF
             printf ${shellQuote(markerBody)} > "${'$'}eta_temporary/${AlpineEnvironmentPaths.READY_MARKER}"
             "${'$'}eta_busybox" chmod 0644 "${'$'}eta_temporary/${AlpineEnvironmentPaths.READY_MARKER}"
@@ -365,6 +367,7 @@ internal class AlpineEnvironmentInstaller(
 
     companion object {
         private const val ALPINE_VERSION = "3.24.1"
+        private const val DEFAULT_MIRROR_BASE_URL = "https://dl-cdn.alpinelinux.org/alpine"
         private const val COMMON_TOOLS_TIMEOUT_SECONDS = 600L
         private const val PREFLIGHT_ROOT_UNAVAILABLE = 40
         private const val PREFLIGHT_BUSYBOX_UNAVAILABLE = 41
@@ -432,14 +435,17 @@ internal class AlpineEnvironmentInstaller(
             "uv",
         )
 
-        internal fun artifactForAbis(abis: List<String>): VerifiedArtifact? =
+        internal fun artifactForAbis(
+            abis: List<String>,
+            baseUrl: String = DEFAULT_MIRROR_BASE_URL,
+        ): VerifiedArtifact? =
             abis.firstNotNullOfOrNull { abi ->
                 when (abi) {
                     "arm64-v8a" -> VerifiedArtifact(
                         id = "alpine-minirootfs-aarch64",
                         version = ALPINE_VERSION,
                         fileName = "alpine-minirootfs-$ALPINE_VERSION-aarch64.tar.gz",
-                        url = "https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/aarch64/" +
+                        url = "$baseUrl/v3.24/releases/aarch64/" +
                             "alpine-minirootfs-$ALPINE_VERSION-aarch64.tar.gz",
                         sha256 = "f55a90f69052c5bd6f92cb09a8f47065970830b194c917a006fb94028e721259",
                         sizeBytes = 4_023_732L,
@@ -448,7 +454,7 @@ internal class AlpineEnvironmentInstaller(
                         id = "alpine-minirootfs-x86_64",
                         version = ALPINE_VERSION,
                         fileName = "alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz",
-                        url = "https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/x86_64/" +
+                        url = "$baseUrl/v3.24/releases/x86_64/" +
                             "alpine-minirootfs-$ALPINE_VERSION-x86_64.tar.gz",
                         sha256 = "41f73e3cf5fa919b8aa5ca6b30dc48f0da2720776d7423e2a7748211456fe081",
                         sizeBytes = 3_698_422L,

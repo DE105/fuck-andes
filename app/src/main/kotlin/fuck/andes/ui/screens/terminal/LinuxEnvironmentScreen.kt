@@ -8,6 +8,7 @@ import android.text.format.Formatter
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,6 +27,8 @@ import fuck.andes.agent.terminal.AlpineInstallStage
 import fuck.andes.agent.terminal.ApkAnalysisInstallProgress
 import fuck.andes.agent.terminal.ApkAnalysisInstallResult
 import fuck.andes.agent.terminal.ApkAnalysisInstallStage
+import fuck.andes.data.datastore.SettingsDataStore
+import fuck.andes.data.model.AlpineMirror
 import fuck.andes.ui.components.MiuixScaffoldPage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -41,8 +44,13 @@ internal fun LinuxEnvironmentScreen(
     context: Context,
     onBack: () -> Unit,
 ) {
-    val installer = remember(context.applicationContext) {
-        AlpineEnvironmentInstaller(context.applicationContext)
+    var mirror by remember { mutableStateOf(AlpineMirror.OFFICIAL) }
+    var mirrorExpanded by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        mirror = SettingsDataStore.settings().alpineMirror
+    }
+    val installer = remember(context.applicationContext, mirror) {
+        AlpineEnvironmentInstaller(context.applicationContext, mirror = mirror)
     }
     val apkAnalysisInstaller = remember(context.applicationContext) {
         AlpineApkAnalysisInstaller(context.applicationContext)
@@ -62,6 +70,61 @@ internal fun LinuxEnvironmentScreen(
         title = stringResource(R.string.ui_linux_tool_environment_314d22),
         onBack = onBack,
     ) {
+        item(key = "mirror-title") { SmallTitle(stringResource(R.string.linux_mirror_source)) }
+        item(key = "mirror-card") {
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                BasicComponent(
+                    title = mirror.displayName(context),
+                    summary = stringResource(R.string.linux_mirror_source_summary),
+                    endActions = {
+                        TextButton(
+                            text = context.getString(
+                                if (mirrorExpanded) R.string.linux_mirror_collapse else R.string.linux_mirror_change,
+                            ),
+                            enabled = !installing,
+                            onClick = { mirrorExpanded = !mirrorExpanded },
+                        )
+                    },
+                )
+                if (mirrorExpanded) {
+                    AlpineMirror.entries.forEach { option ->
+                        val selected = option == mirror
+                        BasicComponent(
+                            title = option.displayName(context),
+                            summary = option.baseUrl,
+                            endActions = {
+                                if (selected) {
+                                    TextButton(
+                                        text = context.getString(R.string.linux_mirror_selected),
+                                        onClick = {},
+                                    )
+                                } else {
+                                    TextButton(
+                                        text = context.getString(R.string.linux_mirror_apply),
+                                        enabled = !installing,
+                                        onClick = {
+                                            mirrorExpanded = false
+                                            coroutineScope.launch {
+                                                SettingsDataStore.setAlpineMirror(option)
+                                                mirror = option
+                                            }
+                                        },
+                                    )
+                                }
+                            },
+                        )
+                    }
+                    BasicComponent(
+                        title = stringResource(R.string.linux_mirror_switch_hint),
+                    )
+                }
+            }
+        }
+
         item(key = "status-title") { SmallTitle(stringResource(R.string.ui_environmental_status_5b32a1)) }
         item(key = "status-card") {
             Card(
@@ -275,6 +338,15 @@ internal fun LinuxEnvironmentScreen(
         }
     }
 }
+
+private fun AlpineMirror.displayName(context: Context): String = context.getString(
+    when (this) {
+        AlpineMirror.OFFICIAL -> R.string.linux_mirror_official
+        AlpineMirror.ALIYUN -> R.string.linux_mirror_aliyun
+        AlpineMirror.TUNA -> R.string.linux_mirror_tuna
+        AlpineMirror.USTC -> R.string.linux_mirror_ustc
+    },
+)
 
 private fun AlpineEnvironmentStatus.title(context: Context): String = when (state) {
     AlpineEnvironmentState.NOT_INSTALLED -> context.getString(R.string.linux_not_installed)

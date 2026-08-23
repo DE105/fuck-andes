@@ -862,6 +862,17 @@
   <string name="linux_reinstall_tools">重新安裝工具</string>
   <string name="linux_continue_installation">繼續安裝</string>
   <string name="linux_download_install">下載並安裝</string>
+  <string name="linux_mirror_source">映像源</string>
+  <string name="linux_mirror_source_summary">基礎映像與軟體套件透過所選映像源下載</string>
+  <string name="linux_mirror_change">切換</string>
+  <string name="linux_mirror_collapse">收起</string>
+  <string name="linux_mirror_apply">套用</string>
+  <string name="linux_mirror_selected">目前</string>
+  <string name="linux_mirror_switch_hint">切換後於下次下載或重新安裝時生效</string>
+  <string name="linux_mirror_official">官方源（dl-cdn.alpinelinux.org）</string>
+  <string name="linux_mirror_aliyun">阿里雲</string>
+  <string name="linux_mirror_tuna">清華大學 TUNA</string>
+  <string name="linux_mirror_ustc">中國科學技術大學 USTC</string>
   <string name="linux_not_checked">尚未檢查</string>
   <string name="linux_health_summary">檢查核心指令、工作區掛載、共用儲存空間與剩餘容量</string>
   <string name="linux_busy">忙碌</string>

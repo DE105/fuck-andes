@@ -8,4 +8,5 @@ data class Settings(
     val selectedModelId: String? = null,
     val memoryEnabled: Boolean = true,
     val appearance: AppearanceSettings = AppearanceSettings(),
+    val alpineMirror: AlpineMirror = AlpineMirror.OFFICIAL,
 )

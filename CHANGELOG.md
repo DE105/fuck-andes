@@ -2,6 +2,17 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.6.4] - 2026-08-23
+
+### 新增
+
+- **Linux 环境安装源可配置**：新增「镜像源」设置项，支持官方源（`dl-cdn.alpinelinux.org`）、阿里云、清华大学 TUNA 与中科大 USTC 镜像，切换后于下次下载或重新安装时生效。基础镜像（minirootfs）下载与 `apk` 软件源（`/etc/apk/repositories`）均走所选镜像，解决官方 CDN 在网络受限地区下载与安装缓慢的问题。
+
+### 变更
+
+- `AlpineEnvironmentInstaller` 新增镜像源参数（默认官方源），`artifactForAbis` 支持传入镜像根地址生成下载 URL。
+- `SettingsDataStore` 持久化镜像源选择，新增 `alpineMirrorFlow()` 与 `setAlpineMirror()`。
+
 ## [2.6.3] - 2026-08-23
 
 ### 修复

@@ -1,5 +1,6 @@
 package fuck.andes.agent.terminal
 
+import fuck.andes.data.model.AlpineMirror
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -30,6 +31,29 @@ class AlpineEnvironmentInstallerTest {
     @Test
     fun unsupportedAbiDoesNotGuessAnArtifact() {
         assertNull(AlpineEnvironmentInstaller.artifactForAbis(listOf("armeabi-v7a", "x86")))
+    }
+
+    @Test
+    fun mirrorBaseUrlRewritesArtifactUrls() {
+        val artifact = AlpineEnvironmentInstaller.artifactForAbis(
+            listOf("arm64-v8a"),
+            baseUrl = "https://mirrors.aliyun.com/alpine",
+        )
+
+        requireNotNull(artifact)
+        assertTrue(
+            artifact.url.startsWith("https://mirrors.aliyun.com/alpine/v3.24/releases/aarch64/"),
+        )
+        assertEquals(64, artifact.sha256.length)
+    }
+
+    @Test
+    fun alpineMirrorFallsBackToOfficialForUnknownPersistedValue() {
+        assertEquals(AlpineMirror.OFFICIAL, AlpineMirror.fromPersistedValue(null))
+        assertEquals(AlpineMirror.OFFICIAL, AlpineMirror.fromPersistedValue("unknown"))
+        assertEquals(AlpineMirror.ALIYUN, AlpineMirror.fromPersistedValue("aliyun"))
+        assertEquals(AlpineMirror.TUNA, AlpineMirror.fromPersistedValue("tuna"))
+        assertEquals(AlpineMirror.USTC, AlpineMirror.fromPersistedValue("ustc"))
     }
 
     @Test

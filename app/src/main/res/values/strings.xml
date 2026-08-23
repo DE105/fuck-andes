@@ -874,6 +874,17 @@
   <string name="linux_reinstall_tools">Reinstall tools</string>
   <string name="linux_continue_installation">Continue installation</string>
   <string name="linux_download_install">Download and install</string>
+  <string name="linux_mirror_source">Mirror source</string>
+  <string name="linux_mirror_source_summary">The base image and packages are downloaded through the selected mirror</string>
+  <string name="linux_mirror_change">Change</string>
+  <string name="linux_mirror_collapse">Collapse</string>
+  <string name="linux_mirror_apply">Apply</string>
+  <string name="linux_mirror_selected">Current</string>
+  <string name="linux_mirror_switch_hint">The new mirror takes effect on the next download or reinstall</string>
+  <string name="linux_mirror_official">Official (dl-cdn.alpinelinux.org)</string>
+  <string name="linux_mirror_aliyun">Aliyun</string>
+  <string name="linux_mirror_tuna">Tsinghua TUNA</string>
+  <string name="linux_mirror_ustc">USTC</string>
   <string name="linux_not_checked">Not checked</string>
   <string name="linux_health_summary">Check core commands, workspace mount, shared storage, and free space</string>
   <string name="linux_busy">Busy</string>
