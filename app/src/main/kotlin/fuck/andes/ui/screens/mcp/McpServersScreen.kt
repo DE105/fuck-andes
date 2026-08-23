@@ -110,37 +110,36 @@ internal fun McpServersScreen(
                         title = context.getString(fuck.andes.R.string.ui_mcp_no_servers_1826e),
                     )
                 }
-            } else {
-                items(servers, key = { "server_${it.id}" }) { config ->
-                    Card(
-                        modifier = Modifier
-                            .padding(horizontal = 12.dp)
-                            .padding(bottom = 12.dp),
-                    ) {
-                        BasicComponent(
-                            title = config.name,
-                            summary = buildString {
-                                append(config.transport.label(context))
-                                append(" · ")
-                                append(
-                                    context.getString(
-                                        if (config.enabled) {
-                                            fuck.andes.R.string.ui_mcp_enabled_63197
-                                        } else {
-                                            fuck.andes.R.string.ui_mcp_disabled_d8fea
-                                        },
-                                    ),
-                                )
-                            },
-                            endActions = {
-                                TextButton(
-                                    text = context.getString(fuck.andes.R.string.action_edit),
-                                    onClick = { onNavigate(AppRoute.McpServerEdit(config.id)) },
-                                )
-                            },
+            }
+        }
+        items(servers, key = { "server_${it.id}" }) { config ->
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .padding(bottom = 12.dp),
+            ) {
+                BasicComponent(
+                    title = config.name,
+                    summary = buildString {
+                        append(config.transport.label(context))
+                        append(" · ")
+                        append(
+                            context.getString(
+                                if (config.enabled) {
+                                    fuck.andes.R.string.ui_mcp_enabled_63197
+                                } else {
+                                    fuck.andes.R.string.ui_mcp_disabled_d8fea
+                                },
+                            ),
                         )
-                    }
-                }
+                    },
+                    endActions = {
+                        TextButton(
+                            text = context.getString(fuck.andes.R.string.action_edit),
+                            onClick = { onNavigate(AppRoute.McpServerEdit(config.id)) },
+                        )
+                    },
+                )
             }
         }
     }
