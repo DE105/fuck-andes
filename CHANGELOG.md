@@ -18,7 +18,7 @@
 ### 修复
 
 - **MCP 工具调用参数被丢弃**：`McpClientManager.toArgumentMap` 中裸 `get(key)` 被 Kotlin `buildMap` 内层 `MutableMap` receiver 劫持，取到的是正在构建的空 map 的 `null`，导致所有 MCP 工具参数在发出时全部变为 `null`（服务端报 `Missing parameter`/`badValue: null`）。改用无歧义的 `opt(key)` 后参数正常透传。
-- **文件选择无法取得真实路径**：`AgentFileReferenceGateway` 仅支持主存储卷（`primary:`）与 MediaStore 可查询的媒体文件，从「下载」分类（Downloads provider 的 `msf:` documentId）或云盘/SD 卡等选择文件时会提示「无法取得真实路径」。现在 Downloads provider 的 `raw:` documentId 直接映射真实路径，其余无法解析路径的文件经 SAF 读取内容后由 root 拷贝到 `/data/local/tmp/eta-saf-cache/` 供 Agent 访问。
+- **文件选择无法取得真实路径**：`AgentFileReferenceGateway` 仅支持主存储卷（`primary:`）与 MediaStore 可查询的媒体文件，从「下载」分类（Downloads provider 的 `msf:` documentId）、内部存储根目录（`primary` 卷根）或云盘/SD 卡等选择文件时提示「无法取得真实路径」。现在 Downloads provider 的 `raw:` documentId 直接映射真实路径，`primary` 卷根正确映射到 `/storage/emulated/0`，documentId 无法解析（非标准 URI 等）时不再短路，其余无法解析路径的文件经 SAF 读取内容后由 root 拷贝到 `/data/local/tmp/eta-saf-cache/` 供 Agent 访问。
 
 ## [2.6.6] - 2026-08-23
 
