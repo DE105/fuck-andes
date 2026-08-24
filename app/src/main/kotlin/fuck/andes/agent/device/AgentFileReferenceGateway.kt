@@ -3,7 +3,6 @@ package fuck.andes.agent.device
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
-import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import fuck.andes.agent.model.AgentFileReference
@@ -67,40 +66,30 @@ internal class AgentFileReferenceGateway(
         uri: Uri,
         expectedKind: AgentFileReferenceKind,
     ): Resolution {
-        val documentId = runCatching {
-            if (DocumentsContract.isTreeUri(uri)) {
-                DocumentsContract.getTreeDocumentId(uri)
-            } else {
-                DocumentsContract.getDocumentId(uri)
+        val documentId = parseDocumentId(uri)
+        if (documentId != null) {
+            mapPrimaryStorageDocument(uri.authority, documentId)?.let { mapped ->
+                logger.info(
+                    "resolveDocumentUri: 主存储卷映射成功 uri=$uri documentId=$documentId path=$mapped"
+                )
+                return resolveAbsolutePath(mapped, expectedKind)
             }
-        }.getOrNull()
-        if (documentId == null) {
-            logger.debug {
-                "resolveDocumentUri: 无法解析 document id uri=$uri authority=${uri.authority} kind=$expectedKind"
-            }
-            return Resolution.Failure(Error.UnsupportedDocumentProvider)
-        }
-        mapPrimaryStorageDocument(uri.authority, documentId)?.let { mapped ->
-            logger.debug {
-                "resolveDocumentUri: 主存储卷映射成功 uri=$uri documentId=$documentId path=$mapped"
-            }
-            return resolveAbsolutePath(mapped, expectedKind)
         }
         resolveDocumentPath(uri)?.let { path ->
-            logger.debug {
+            logger.info(
                 "resolveDocumentUri: 本地路径查询成功 uri=$uri path=$path"
-            }
+            )
             return resolveAbsolutePath(path, expectedKind)
         }
         copyDocumentContent(uri, expectedKind)?.let { path ->
-            logger.debug {
+            logger.info(
                 "resolveDocumentUri: SAF 拷贝兜底成功 uri=$uri kind=$expectedKind path=$path"
-            }
+            )
             return resolveAbsolutePath(path, expectedKind)
         }
-        logger.debug {
+        logger.info(
             "resolveDocumentUri: 所有解析器均失败 uri=$uri authority=${uri.authority} documentId=$documentId kind=$expectedKind"
-        }
+        )
         return Resolution.Failure(Error.UnsupportedDocumentProvider)
     }
 
@@ -202,7 +191,14 @@ internal class AgentFileReferenceGateway(
             if (authority != EXTERNAL_STORAGE_DOCUMENTS_AUTHORITY) return null
             if (documentId.hasUnsupportedControlCharacter()) return null
             val separator = documentId.indexOf(':')
-            if (separator < 0 || !documentId.substring(0, separator).equals("primary", ignoreCase = true)) {
+            if (separator < 0) {
+                return if (documentId.equals("primary", ignoreCase = true)) {
+                    SHARED_STORAGE_ROOT
+                } else {
+                    null
+                }
+            }
+            if (!documentId.substring(0, separator).equals("primary", ignoreCase = true)) {
                 return null
             }
             val relativePath = documentId.substring(separator + 1)
@@ -235,6 +231,19 @@ internal class AgentFileReferenceGateway(
             return queryDataColumn(context, mediaUri)
         }
 
+        /**
+         * 从 URI 的 path 段直接解析 documentId，不依赖 DocumentsContract，
+         * 避免对非标准 URI（如 file:// 或 provider 自定义 path）解析抛异常导致拷贝兜底被短路。
+         */
+        private fun parseDocumentId(uri: Uri): String? = runCatching {
+            val segments = uri.pathSegments
+            if (segments.size >= 2 && (segments[0] == "document" || segments[0] == "tree")) {
+                Uri.decode(segments[1])
+            } else {
+                null
+            }
+        }.getOrNull()
+
         @Suppress("DEPRECATION")
         private fun queryDataColumn(context: Context, uri: Uri): String? = try {
             context.contentResolver.query(
@@ -264,9 +273,9 @@ internal class AgentFileReferenceGateway(
             executeRootCommand: (String) -> BoundedRootCommandExecutor.Result,
         ): String? {
             if (expectedKind != AgentFileReferenceKind.File) {
-                logger.debug {
+                logger.info(
                     "copySafDocumentToTemporaryRoot: 目录不支持拷贝 kind=$expectedKind uri=$uri"
-                }
+                )
                 return null
             }
             val displayName = queryDisplayName(context.contentResolver, uri)
@@ -282,9 +291,9 @@ internal class AgentFileReferenceGateway(
                 false
             }
             if (!copied) {
-                logger.debug {
+                logger.info(
                     "copySafDocumentToTemporaryRoot: 无法读取内容 uri=$uri displayName=$displayName"
-                }
+                )
                 return null
             }
             val targetDir = "$TEMPORARY_ROOT/$SAF_COPY_DIRECTORY"
@@ -293,10 +302,10 @@ internal class AgentFileReferenceGateway(
                 "mkdir -p ${shellQuote(targetDir)} && cp ${shellQuote(cacheFile.absolutePath)} ${shellQuote(targetPath)}"
             )
             if (!result.ok) {
-                logger.debug {
+                logger.info(
                     "copySafDocumentToTemporaryRoot: root 拷贝失败 exit=${result.exitCode} " +
                         "timedOut=${result.timedOut} stderr=${result.stderr} target=$targetPath"
-                }
+                )
                 return null
             }
             return targetPath

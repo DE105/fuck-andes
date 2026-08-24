@@ -29,6 +29,13 @@ class AgentFileReferenceGatewayTest {
                 "primary:",
             ),
         )
+        assertEquals(
+            "/storage/emulated/0",
+            AgentFileReferenceGateway.mapPrimaryStorageDocument(
+                AgentFileReferenceGateway.EXTERNAL_STORAGE_DOCUMENTS_AUTHORITY,
+                "primary",
+            ),
+        )
         assertNull(
             AgentFileReferenceGateway.mapPrimaryStorageDocument(
                 "com.android.providers.downloads.documents",
@@ -278,6 +285,34 @@ class AgentFileReferenceGatewayTest {
         )
         assertEquals(uri, copiedUri)
         assertEquals(AgentFileReferenceKind.File, copiedKind)
+    }
+
+    @Test
+    fun resolveDocumentUri_copiesDocumentWhenDocumentIdUnparseable() {
+        var copiedUri: Uri? = null
+        val gateway = AgentFileReferenceGateway(
+            resolveDocumentPath = { null },
+            executeRootCommand = {
+                success("file\n/data/local/tmp/eta-saf-cache/1-x.txt")
+            },
+            copyDocumentContent = { uri, _ ->
+                copiedUri = uri
+                "/data/local/tmp/eta-saf-cache/1-x.txt"
+            },
+        )
+        val uri = Uri.parse("file:///storage/emulated/0/Download/x.txt")
+
+        assertEquals(
+            AgentFileReferenceGateway.Resolution.Success(
+                AgentFileReference(
+                    displayName = "1-x.txt",
+                    absolutePath = "/data/local/tmp/eta-saf-cache/1-x.txt",
+                    kind = AgentFileReferenceKind.File,
+                )
+            ),
+            gateway.resolveDocumentUri(uri, AgentFileReferenceKind.File),
+        )
+        assertEquals(uri, copiedUri)
     }
 
     private fun assertFailure(
