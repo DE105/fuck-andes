@@ -20,6 +20,9 @@ room = "2.8.4"
 junit = "4.13.2"
 json = "20260522"
 robolectric = "4.16.1"
+mcp-sdk = "0.10.0"
+ktor = "3.2.3"
+kotlinx-io = "0.8.2"
 
 [libraries]
 libxposed-api = { group = "io.github.libxposed", name = "api", version.ref = "libxposedApi" }
@@ -50,6 +53,10 @@ kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 json = { group = "org.json", name = "json", version.ref = "json" }
 robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
+mcp-sdk-client = { group = "io.modelcontextprotocol", name = "kotlin-sdk-client", version.ref = "mcp-sdk" }
+ktor-client-cio = { group = "io.ktor", name = "ktor-client-cio", version.ref = "ktor" }
+ktor-client-core = { group = "io.ktor", name = "ktor-client-core", version.ref = "ktor" }
+kotlinx-io-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-io-core", version.ref = "kotlinx-io" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

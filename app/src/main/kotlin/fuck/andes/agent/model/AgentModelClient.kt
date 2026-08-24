@@ -101,6 +101,7 @@ internal object AgentModelClient {
             memoryContext,
         )
         val transcriptStartIndex = messages.length()
+        val mcpTools = AgentMcpToolCatalog.discoverBlocking()
         val tools = AgentToolCatalog.build(
             terminalTools = config.terminalTools,
             browserTools = config.browserTools,
@@ -110,6 +111,7 @@ internal object AgentModelClient {
             skillGitHubDiscovery = true,
             skillGitHubInstall = true,
             memoryTools = memoryContext.enabled,
+            mcpTools = mcpTools,
         )
         onEvent(
             AgentEvent.RunStarted(

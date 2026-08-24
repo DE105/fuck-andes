@@ -29,6 +29,13 @@ class AgentFileReferenceGatewayTest {
                 "primary:",
             ),
         )
+        assertEquals(
+            "/storage/emulated/0",
+            AgentFileReferenceGateway.mapPrimaryStorageDocument(
+                AgentFileReferenceGateway.EXTERNAL_STORAGE_DOCUMENTS_AUTHORITY,
+                "primary",
+            ),
+        )
         assertNull(
             AgentFileReferenceGateway.mapPrimaryStorageDocument(
                 "com.android.providers.downloads.documents",
@@ -216,6 +223,96 @@ class AgentFileReferenceGatewayTest {
                 AgentFileReferenceKind.File,
             ),
         )
+    }
+
+    @Test
+    fun mapPrimaryStorageDocument_mapsDownloadsRawPath() {
+        assertEquals(
+            "/storage/emulated/0/Download/report.txt",
+            AgentFileReferenceGateway.mapPrimaryStorageDocument(
+                "com.android.providers.downloads.documents",
+                "raw:/storage/emulated/0/Download/report.txt",
+            ),
+        )
+        assertNull(
+            AgentFileReferenceGateway.mapPrimaryStorageDocument(
+                "com.android.providers.downloads.documents",
+                "msf:12345",
+            )
+        )
+        assertNull(
+            AgentFileReferenceGateway.mapPrimaryStorageDocument(
+                "com.android.providers.downloads.documents",
+                "raw:relative/path",
+            )
+        )
+        assertNull(
+            AgentFileReferenceGateway.mapPrimaryStorageDocument(
+                "com.android.providers.downloads.documents",
+                "raw:/storage/emulated/0/Download/../secret",
+            )
+        )
+    }
+
+    @Test
+    fun resolveDocumentUri_copiesDocumentWhenLocalPathUnavailable() {
+        var copiedUri: Uri? = null
+        var copiedKind: AgentFileReferenceKind? = null
+        val gateway = AgentFileReferenceGateway(
+            resolveDocumentPath = { null },
+            executeRootCommand = {
+                success("file\n/data/local/tmp/eta-saf-cache/1-report.txt")
+            },
+            copyDocumentContent = { uri, kind ->
+                copiedUri = uri
+                copiedKind = kind
+                "/data/local/tmp/eta-saf-cache/1-report.txt"
+            },
+        )
+        val uri = Uri.parse(
+            "content://com.android.providers.downloads.documents/document/msf%3A12345"
+        )
+
+        assertEquals(
+            AgentFileReferenceGateway.Resolution.Success(
+                AgentFileReference(
+                    displayName = "1-report.txt",
+                    absolutePath = "/data/local/tmp/eta-saf-cache/1-report.txt",
+                    kind = AgentFileReferenceKind.File,
+                )
+            ),
+            gateway.resolveDocumentUri(uri, AgentFileReferenceKind.File),
+        )
+        assertEquals(uri, copiedUri)
+        assertEquals(AgentFileReferenceKind.File, copiedKind)
+    }
+
+    @Test
+    fun resolveDocumentUri_copiesDocumentWhenDocumentIdUnparseable() {
+        var copiedUri: Uri? = null
+        val gateway = AgentFileReferenceGateway(
+            resolveDocumentPath = { null },
+            executeRootCommand = {
+                success("file\n/data/local/tmp/eta-saf-cache/1-x.txt")
+            },
+            copyDocumentContent = { uri, _ ->
+                copiedUri = uri
+                "/data/local/tmp/eta-saf-cache/1-x.txt"
+            },
+        )
+        val uri = Uri.parse("file:///storage/emulated/0/Download/x.txt")
+
+        assertEquals(
+            AgentFileReferenceGateway.Resolution.Success(
+                AgentFileReference(
+                    displayName = "1-x.txt",
+                    absolutePath = "/data/local/tmp/eta-saf-cache/1-x.txt",
+                    kind = AgentFileReferenceKind.File,
+                )
+            ),
+            gateway.resolveDocumentUri(uri, AgentFileReferenceKind.File),
+        )
+        assertEquals(uri, copiedUri)
     }
 
     private fun assertFailure(

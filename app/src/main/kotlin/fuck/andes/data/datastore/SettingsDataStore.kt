@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import fuck.andes.data.model.AlpineMirror
 import fuck.andes.data.model.AppearanceAccentColor
 import fuck.andes.data.model.AppearancePaletteStyle
 import fuck.andes.data.model.AppearanceSettings
@@ -40,6 +41,8 @@ internal object SettingsDataStore {
     private val APPEARANCE_PREDICTIVE_BACK_ENABLED =
         booleanPreferencesKey("appearance_predictive_back_enabled")
     private val APPEARANCE_INTERFACE_SCALE = floatPreferencesKey("appearance_interface_scale")
+    private val ALPINE_MIRROR = stringPreferencesKey("alpine_mirror")
+    private val CUSTOM_ALPINE_MIRROR_URL = stringPreferencesKey("custom_alpine_mirror_url")
     private const val SELECTED_MODEL_BY_PROVIDER_PREFIX = "selected_model_id_by_provider."
 
     private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = STORE_NAME)
@@ -76,6 +79,8 @@ internal object SettingsDataStore {
             prefs.putOrRemove(SELECTED_PROVIDER_ID, updated.selectedProviderId)
             prefs.putOrRemove(SELECTED_MODEL_ID, updated.selectedModelId)
             prefs[MEMORY_ENABLED] = updated.memoryEnabled
+            prefs[ALPINE_MIRROR] = updated.alpineMirror.persistedValue
+            prefs.putOrRemove(CUSTOM_ALPINE_MIRROR_URL, updated.customAlpineMirrorUrl)
             prefs.putAppearance(updated.appearance.normalized())
         }
     }
@@ -102,6 +107,20 @@ internal object SettingsDataStore {
 
     fun memoryEnabledFlow(): Flow<Boolean> =
         settingsFlow().map { it.memoryEnabled }
+
+    fun alpineMirrorFlow(): Flow<AlpineMirror> =
+        settingsFlow().map { it.alpineMirror }
+
+    fun customAlpineMirrorUrlFlow(): Flow<String?> =
+        settingsFlow().map { it.customAlpineMirrorUrl }
+
+    suspend fun setAlpineMirror(mirror: AlpineMirror) {
+        updateSettings { it.copy(alpineMirror = mirror) }
+    }
+
+    suspend fun setCustomAlpineMirrorUrl(url: String?) {
+        updateSettings { it.copy(customAlpineMirrorUrl = url?.trim()?.takeIf(String::isNotBlank)) }
+    }
 
     fun appearanceSettingsFlow(): Flow<AppearanceSettings> =
         settingsFlow().map { it.appearance }
@@ -173,6 +192,8 @@ internal object SettingsDataStore {
         selectedProviderId = this[SELECTED_PROVIDER_ID],
         selectedModelId = this[SELECTED_MODEL_ID],
         memoryEnabled = this[MEMORY_ENABLED] ?: true,
+        alpineMirror = AlpineMirror.fromPersistedValue(this[ALPINE_MIRROR]),
+        customAlpineMirrorUrl = this[CUSTOM_ALPINE_MIRROR_URL],
         appearance = AppearanceSettings(
             themeMode = AppearanceThemeMode.fromPersistedValue(this[APPEARANCE_THEME_MODE]),
             monetEnabled = this[APPEARANCE_MONET_ENABLED] ?: false,

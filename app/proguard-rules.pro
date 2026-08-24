@@ -59,3 +59,7 @@
 # 不在 App 层重复保留整个类或包，避免阻断裁剪、内联和混淆。
 # 保留源码与行号属性，便于使用 release mapping 还原线上堆栈。
 -keepattributes SourceFile,LineNumberTable
+
+# MCP SDK 是 KMP 产物，依赖 kotlinx-serialization 多态反序列化 JSON-RPC 消息；
+# 其自带 consumer rules 可能不完整，整体保留以保证 release 下协议编解码稳定。
+-keep class io.modelcontextprotocol.kotlin.sdk.** { *; }

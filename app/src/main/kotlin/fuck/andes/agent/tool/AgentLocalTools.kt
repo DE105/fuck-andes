@@ -6,9 +6,13 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.SystemClock
+import android.util.Log
 import fuck.andes.agent.browser.AgentBrowserSession
 import fuck.andes.agent.device.RootShellDeviceController
 import fuck.andes.agent.device.BoundedRootCommandExecutor
+import fuck.andes.agent.mcp.McpClientManager
+import fuck.andes.agent.mcp.McpConfigStore
+import fuck.andes.agent.model.AgentMcpToolCatalog
 import fuck.andes.agent.model.AgentModelClient
 import fuck.andes.agent.model.AgentScreenObservationContract
 import fuck.andes.agent.model.AgentSensitiveToolPolicy
@@ -196,10 +200,14 @@ internal class AgentLocalTools(
                 "skills_inspect_github" -> textResult(skillsInspectGitHub(args))
                 "skills_install_from_github" -> textResult(skillsInstallFromGitHub(args))
                 else -> textResult(
-                    errorResult(
-                        code = "UNKNOWN_TOOL",
-                        message = "未知工具：${toolCall.name}"
-                    )
+                    if (toolCall.name.startsWith(AgentMcpToolCatalog.MCP_TOOL_PREFIX)) {
+                        mcpTool(toolCall)
+                    } else {
+                        errorResult(
+                            code = "UNKNOWN_TOOL",
+                            message = "未知工具：${toolCall.name}"
+                        )
+                    }
                 )
             }
         }.getOrElse { throwable ->
@@ -814,6 +822,50 @@ internal class AgentLocalTools(
         }
     }
 
+    // ==================== MCP tools ====================
+
+    private fun mcpTool(toolCall: AgentModelClient.ToolCall): String {
+        if (!Prefs.isEnabled(Prefs.Keys.AGENT_MCP_TOOLS)) {
+            return errorResult("MCP_TOOLS_DISABLED", "请先在设置中启用 MCP 工具")
+        }
+        val parsed = AgentMcpToolCatalog.parseToolName(toolCall.name)
+            ?: return errorResult("INVALID_MCP_TOOL", "无效的 MCP 工具名：${toolCall.name}")
+        val (serverId, toolName) = parsed
+        val args = JSONObject(toolCall.argumentsJson.ifBlank { "{}" })
+        return runCatching {
+            runBlocking {
+                val config = McpConfigStore.servers().firstOrNull { it.id == serverId }
+                    ?: return@runBlocking errorResult("MCP_SERVER_NOT_FOUND", "找不到 MCP 服务器配置")
+                if (!config.enabled) {
+                    return@runBlocking errorResult("MCP_SERVER_DISABLED", "该 MCP 服务器已禁用")
+                }
+                if (!config.connectable()) {
+                    return@runBlocking errorResult(
+                        "MCP_SERVER_INCOMPLETE",
+                        "该 MCP 服务器配置不完整，请在设置中补齐传输端点",
+                    )
+                }
+                val result = McpClientManager.invoke(config, toolName, args)
+                if (result.isError) {
+                    errorResult("MCP_CALL_ERROR", result.text.ifBlank { "MCP 工具返回错误" })
+                } else {
+                    JSONObject()
+                        .put("ok", true)
+                        .put("server", config.name)
+                        .put("tool", toolName)
+                        .put("content", result.text)
+                        .toString()
+                }
+            }
+        }.getOrElse { throwable ->
+            Log.w(TAG, "MCP 工具调用失败 ${toolCall.name} 参数=$args: ${throwable.message}")
+            errorResult(
+                "MCP_CALL_FAILED",
+                throwable.message ?: throwable.javaClass.simpleName,
+            )
+        }
+    }
+
     // ==================== Skills tools ====================
 
     private fun skillsList(args: JSONObject): String {
@@ -1295,6 +1347,7 @@ internal class AgentLocalTools(
     )
 
     private companion object {
+        const val TAG = "AgentLocalTools"
         val DEVICE_DIRECT_TOOL_NAMES = setOf(
             "set_alarm",
             "set_timer",

@@ -43,6 +43,7 @@ internal object Prefs {
         const val AGENT_DEVICE_SENSITIVE_READ_TOOLS = "agent_device_sensitive_read_tools"
         const val AGENT_DEVICE_SENSITIVE_ACTION_TOOLS = "agent_device_sensitive_action_tools"
         const val AGENT_THINKING_ENABLED = "agent_thinking_enabled"
+        const val AGENT_MCP_TOOLS = "agent_mcp_tools"
         const val AGENT_RUNTIME_CONFIG_JSON = "agent_runtime_config_json"
 
         /** 全部布尔开关及其默认值。 */
@@ -61,7 +62,8 @@ internal object Prefs {
             AGENT_DEVICE_DIRECT_TOOLS to true,
             AGENT_DEVICE_SENSITIVE_READ_TOOLS to true,
             AGENT_DEVICE_SENSITIVE_ACTION_TOOLS to true,
-            AGENT_THINKING_ENABLED to true
+            AGENT_THINKING_ENABLED to true,
+            AGENT_MCP_TOOLS to false
         )
 
         /** 由 Eta Runtime 最终裁决、不要求 Xposed 框架在线的开关。 */
@@ -72,6 +74,7 @@ internal object Prefs {
             AGENT_DEVICE_SENSITIVE_READ_TOOLS,
             AGENT_DEVICE_SENSITIVE_ACTION_TOOLS,
             AGENT_THINKING_ENABLED,
+            AGENT_MCP_TOOLS,
         )
     }
 

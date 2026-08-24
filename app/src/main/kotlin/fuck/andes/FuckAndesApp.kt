@@ -3,6 +3,7 @@ package fuck.andes
 import android.app.Application
 import android.os.Handler
 import android.os.Looper
+import fuck.andes.agent.mcp.McpConfigStore
 import fuck.andes.agent.skill.SkillRuntime
 import fuck.andes.config.Prefs
 import fuck.andes.core.AndroidAgentLogger
@@ -44,6 +45,7 @@ class FuckAndesApp : Application(), XposedServiceHelper.OnServiceListener {
             return
         }
         SettingsDataStore.init(this)
+        McpConfigStore.init(this)
         val predictiveBackEnabled = runBlocking(Dispatchers.IO) {
             AppearanceSettingsRepository.settings().predictiveBackEnabled
         }

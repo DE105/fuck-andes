@@ -1,17 +1,21 @@
 package fuck.andes.agent.device
 
+import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
-import android.provider.DocumentsContract
 import android.provider.MediaStore
+import android.provider.OpenableColumns
 import fuck.andes.agent.model.AgentFileReference
 import fuck.andes.agent.model.AgentFileReferenceKind
 import fuck.andes.agent.model.hasUnsupportedControlCharacter
 import fuck.andes.core.AgentLogger
+import java.io.File
 
 internal class AgentFileReferenceGateway(
     private val resolveDocumentPath: (Uri) -> String? = { null },
     private val executeRootCommand: (String) -> BoundedRootCommandExecutor.Result,
+    private val copyDocumentContent: (Uri, AgentFileReferenceKind) -> String? = { _, _ -> null },
+    private val logger: AgentLogger = NoOpAgentLogger,
 ) {
     constructor(logger: AgentLogger) : this(
         executeRootCommand = { command ->
@@ -22,7 +26,8 @@ internal class AgentFileReferenceGateway(
                     maxOutputBytes = MAX_VALIDATION_OUTPUT_BYTES,
                 )
             }
-        }
+        },
+        logger = logger,
     )
 
     constructor(
@@ -39,23 +44,53 @@ internal class AgentFileReferenceGateway(
                 )
             }
         },
+        copyDocumentContent = { uri, kind ->
+            copySafDocumentToTemporaryRoot(
+                context.applicationContext,
+                uri,
+                kind,
+                logger = logger,
+            ) { command ->
+                BoundedRootCommandExecutor(logger).use { executor ->
+                    executor.execute(
+                        command = command,
+                        timeoutMillis = SAF_COPY_TIMEOUT_MS,
+                        maxOutputBytes = MAX_VALIDATION_OUTPUT_BYTES,
+                    )
+                }
+            }
+        },
     )
 
     fun resolveDocumentUri(
         uri: Uri,
         expectedKind: AgentFileReferenceKind,
     ): Resolution {
-        val documentId = runCatching {
-            if (DocumentsContract.isTreeUri(uri)) {
-                DocumentsContract.getTreeDocumentId(uri)
-            } else {
-                DocumentsContract.getDocumentId(uri)
+        val documentId = parseDocumentId(uri)
+        if (documentId != null) {
+            mapPrimaryStorageDocument(uri.authority, documentId)?.let { mapped ->
+                logger.info(
+                    "resolveDocumentUri: 主存储卷映射成功 uri=$uri documentId=$documentId path=$mapped"
+                )
+                return resolveAbsolutePath(mapped, expectedKind)
             }
-        }.getOrNull() ?: return Resolution.Failure(Error.UnsupportedDocumentProvider)
-        val mappedPath = mapPrimaryStorageDocument(uri.authority, documentId)
-            ?: resolveDocumentPath(uri)
-            ?: return Resolution.Failure(Error.UnsupportedDocumentProvider)
-        return resolveAbsolutePath(mappedPath, expectedKind)
+        }
+        resolveDocumentPath(uri)?.let { path ->
+            logger.info(
+                "resolveDocumentUri: 本地路径查询成功 uri=$uri path=$path"
+            )
+            return resolveAbsolutePath(path, expectedKind)
+        }
+        copyDocumentContent(uri, expectedKind)?.let { path ->
+            logger.info(
+                "resolveDocumentUri: SAF 拷贝兜底成功 uri=$uri kind=$expectedKind path=$path"
+            )
+            return resolveAbsolutePath(path, expectedKind)
+        }
+        logger.info(
+            "resolveDocumentUri: 所有解析器均失败 uri=$uri authority=${uri.authority} documentId=$documentId kind=$expectedKind"
+        )
+        return Resolution.Failure(Error.UnsupportedDocumentProvider)
     }
 
     fun resolveAbsolutePath(
@@ -135,12 +170,35 @@ internal class AgentFileReferenceGateway(
         const val TEMPORARY_ROOT = "/data/local/tmp"
 
         private const val MEDIA_DOCUMENTS_AUTHORITY = "com.android.providers.media.documents"
+        private const val DOWNLOADS_DOCUMENTS_AUTHORITY = "com.android.providers.downloads.documents"
+        private const val SAF_COPY_DIRECTORY = "eta-saf-cache"
+        private const val SAF_COPY_TIMEOUT_MS = 60_000L
 
         fun mapPrimaryStorageDocument(authority: String?, documentId: String): String? {
+            if (authority == DOWNLOADS_DOCUMENTS_AUTHORITY) {
+                if (documentId.hasUnsupportedControlCharacter()) return null
+                if (!documentId.startsWith("raw:")) return null
+                val rawPath = documentId.substringAfter("raw:")
+                if (
+                    rawPath.isEmpty() ||
+                    !rawPath.startsWith('/') ||
+                    rawPath.split('/').any { it == "." || it == ".." }
+                ) {
+                    return null
+                }
+                return rawPath
+            }
             if (authority != EXTERNAL_STORAGE_DOCUMENTS_AUTHORITY) return null
             if (documentId.hasUnsupportedControlCharacter()) return null
             val separator = documentId.indexOf(':')
-            if (separator < 0 || !documentId.substring(0, separator).equals("primary", ignoreCase = true)) {
+            if (separator < 0) {
+                return if (documentId.equals("primary", ignoreCase = true)) {
+                    SHARED_STORAGE_ROOT
+                } else {
+                    null
+                }
+            }
+            if (!documentId.substring(0, separator).equals("primary", ignoreCase = true)) {
                 return null
             }
             val relativePath = documentId.substring(separator + 1)
@@ -173,6 +231,19 @@ internal class AgentFileReferenceGateway(
             return queryDataColumn(context, mediaUri)
         }
 
+        /**
+         * 从 URI 的 path 段直接解析 documentId，不依赖 DocumentsContract，
+         * 避免对非标准 URI（如 file:// 或 provider 自定义 path）解析抛异常导致拷贝兜底被短路。
+         */
+        private fun parseDocumentId(uri: Uri): String? = runCatching {
+            val segments = uri.pathSegments
+            if (segments.size >= 2 && (segments[0] == "document" || segments[0] == "tree")) {
+                Uri.decode(segments[1])
+            } else {
+                null
+            }
+        }.getOrNull()
+
         @Suppress("DEPRECATION")
         private fun queryDataColumn(context: Context, uri: Uri): String? = try {
             context.contentResolver.query(
@@ -193,6 +264,69 @@ internal class AgentFileReferenceGateway(
             // 文档提供方可以拒绝非标准列；这表示它没有可引用的本地绝对路径。
             null
         }
+
+        private fun copySafDocumentToTemporaryRoot(
+            context: Context,
+            uri: Uri,
+            expectedKind: AgentFileReferenceKind,
+            logger: AgentLogger,
+            executeRootCommand: (String) -> BoundedRootCommandExecutor.Result,
+        ): String? {
+            if (expectedKind != AgentFileReferenceKind.File) {
+                logger.info(
+                    "copySafDocumentToTemporaryRoot: 目录不支持拷贝 kind=$expectedKind uri=$uri"
+                )
+                return null
+            }
+            val displayName = queryDisplayName(context.contentResolver, uri)
+                ?.let { sanitizeFileName(it) }
+                ?: "saf-file"
+            val cacheFile = File(context.cacheDir, "saf-copy-${System.currentTimeMillis()}")
+            val copied = try {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    cacheFile.outputStream().use { output -> input.copyTo(output) }
+                    true
+                } ?: false
+            } catch (_: RuntimeException) {
+                false
+            }
+            if (!copied) {
+                logger.info(
+                    "copySafDocumentToTemporaryRoot: 无法读取内容 uri=$uri displayName=$displayName"
+                )
+                return null
+            }
+            val targetDir = "$TEMPORARY_ROOT/$SAF_COPY_DIRECTORY"
+            val targetPath = "$targetDir/${System.currentTimeMillis()}-$displayName"
+            val result = executeRootCommand(
+                "mkdir -p ${shellQuote(targetDir)} && cp ${shellQuote(cacheFile.absolutePath)} ${shellQuote(targetPath)}"
+            )
+            if (!result.ok) {
+                logger.info(
+                    "copySafDocumentToTemporaryRoot: root 拷贝失败 exit=${result.exitCode} " +
+                        "timedOut=${result.timedOut} stderr=${result.stderr} target=$targetPath"
+                )
+                return null
+            }
+            return targetPath
+        }
+
+        private fun queryDisplayName(resolver: ContentResolver, uri: Uri): String? = try {
+            resolver.query(
+                uri,
+                arrayOf(OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null,
+            )?.use { cursor ->
+                if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getString(0) else null
+            }
+        } catch (_: RuntimeException) {
+            null
+        }
+
+        private fun sanitizeFileName(name: String): String =
+            name.replace(Regex("""[/\\\u0000-\u001F\u007F]"""), "_").trim().take(180)
 
         internal fun isWithinAllowedRoots(path: String): Boolean =
             path == SHARED_STORAGE_ROOT ||
@@ -229,4 +363,11 @@ internal class AgentFileReferenceGateway(
         private const val VALIDATION_TIMEOUT_MS = 5_000L
         private const val MAX_VALIDATION_OUTPUT_BYTES = 8 * 1024
     }
+}
+
+private object NoOpAgentLogger : AgentLogger {
+    override fun debug(message: () -> String) = Unit
+    override fun info(message: String) = Unit
+    override fun warn(message: String) = Unit
+    override fun error(message: String, throwable: Throwable?) = Unit
 }

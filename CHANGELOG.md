@@ -1,0 +1,78 @@
+# Changelog
+
+本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
+
+## [2.6.7] - 2026-08-23
+
+### 新增
+
+- **MCP 工具客户端**：为 Agent 集成 Model Context Protocol 工具调用能力（仅客户端）。支持三种传输方式——HTTP（Streamable）、SSE、本地 stdio 子进程（如 `npx`/`uvx` 服务器），可把任意 MCP 服务器暴露的工具并入 Agent 的 function-calling 目录，调用结果经 Agent 循环回灌给模型。
+
+### 实现
+
+- **配置管理**：新增「MCP 服务器」设置页，支持服务器增删改、传输类型切换、Bearer Token 与自定义请求头、stdio 命令/参数/环境变量、超时与启用开关；支持 Claude-Desktop 兼容的 `mcpServers` JSON 一键导入与导出。
+- **客户端接入**：新增 `McpConfigStore`（Preferences DataStore 持久化）、`McpClientManager`（会话复用、工具发现 TTL 缓存、超时控制）与 `StdioProcessBridge`（子进程 stdio 桥接）。
+- **Agent 集成**：MCP 服务器工具以 `mcp__{server}__{tool}` 命名并入工具目录，避免与内置工具冲突；默认关闭，需在设置中启用。
+- 依赖官方 `io.modelcontextprotocol:kotlin-sdk-client:0.10.0` 与 Ktor CIO/SSE 客户端。
+
+### 修复
+
+- **MCP 工具调用参数被丢弃**：`McpClientManager.toArgumentMap` 中裸 `get(key)` 被 Kotlin `buildMap` 内层 `MutableMap` receiver 劫持，取到的是正在构建的空 map 的 `null`，导致所有 MCP 工具参数在发出时全部变为 `null`（服务端报 `Missing parameter`/`badValue: null`）。改用无歧义的 `opt(key)` 后参数正常透传。
+- **文件选择无法取得真实路径**：`AgentFileReferenceGateway` 仅支持主存储卷（`primary:`）与 MediaStore 可查询的媒体文件，从「下载」分类（Downloads provider 的 `msf:` documentId）、内部存储根目录（`primary` 卷根）或云盘/SD 卡等选择文件时提示「无法取得真实路径」。现在 Downloads provider 的 `raw:` documentId 直接映射真实路径，`primary` 卷根正确映射到 `/storage/emulated/0`，documentId 无法解析（非标准 URI 等）时不再短路，其余无法解析路径的文件经 SAF 读取内容后由 root 拷贝到 `/data/local/tmp/eta-saf-cache/` 供 Agent 访问。
+
+## [2.6.6] - 2026-08-23
+
+### 修复
+
+- **升级/重装常用工具时镜像源切换无效**：`/etc/apk/repositories` 原先仅在首次安装时写入，已安装环境升级时不会重写，导致切换镜像源后 apk 仍连接旧源（默认官方源），在官方源不可达的网络下所有镜像源都会失败。现在每次安装/升级工具前都会按当前所选镜像重写软件源列表，切换镜像后立即生效。
+
+## [2.6.5] - 2026-08-23
+
+### 新增
+
+- **自定义镜像源**：支持输入任意镜像根地址并切换到自定义镜像源；内置官方、阿里云、清华大学 TUNA、中科大 USTC 镜像。
+- **镜像延迟测速**：一键测试各镜像源的包索引请求延迟（毫秒），不可达的源单独标记，便于选择最优源。
+- **本地缓存与断点续传**：校验通过后的 minirootfs 归档持久缓存到应用私有目录，重装/重新下载时命中缓存直接跳过下载；下载器支持 HTTP Range 断点续传，意外中断后从断点继续，无需从头下载。
+- **安装不受页面退出影响**：Linux 工具安装/升级任务改为全局协程执行，退出「Linux 工具环境」页面后安装继续运行；重新进入页面可观察到进行中的进度或最终结果，无需重新下载。
+
+### 变更
+
+- 新增 `AlpineEnvironmentController` 全局安装协调器，会话状态通过 `StateFlow` 暴露给页面。
+- 新增 `AlpineMirrorLatencyProbe` 延迟测速探针；`VerifiedArtifactDownloader` 支持 Range 续传。
+- `AlpineEnvironmentInstaller` 支持自定义镜像根地址；归档缓存目录迁移至 `filesDir` 持久目录。
+
+## [2.6.4] - 2026-08-23
+
+### 新增
+
+- **Linux 环境安装源可配置**：新增「镜像源」设置项，支持官方源（`dl-cdn.alpinelinux.org`）、阿里云、清华大学 TUNA 与中科大 USTC 镜像，切换后于下次下载或重新安装时生效。基础镜像（minirootfs）下载与 `apk` 软件源（`/etc/apk/repositories`）均走所选镜像，解决官方 CDN 在网络受限地区下载与安装缓慢的问题。
+
+### 变更
+
+- `AlpineEnvironmentInstaller` 新增镜像源参数（默认官方源），`artifactForAbis` 支持传入镜像根地址生成下载 URL。
+- `SettingsDataStore` 持久化镜像源选择，新增 `alpineMirrorFlow()` 与 `setAlpineMirror()`。
+
+## [2.6.3] - 2026-08-23
+
+### 修复
+
+- **Linux 工具环境就绪后无法再次安装或升级工具**：环境状态为「已就绪」时，按钮此前处于禁用态，工具集升级只能依赖版本回退触发。现在「已就绪」状态下提供「重新安装工具」入口，点击后强制以最新工具集重新安装（`forceToolInstall = true`），与健康检查卡片的自动修复路径行为一致。
+- **安装/升级 Linux 环境时无实时进度，易误以为无响应**：安装流程拆分为可上报的子阶段（检查环境 → 下载 → 解压 → 更新软件源索引 → 安装常用工具 → 完成），各阶段切换时同步刷新界面文案。
+- **下载与安装阶段缺乏精确进度信息**：下载阶段按字节计算百分比（`已下载/总量`）；安装常用工具阶段逐行解析 `apk` 输出，按包上报进度（`第 n/m 个包`）。
+- **安装过程缺少可视化反馈**：环境状态卡片与 APK 分析工具卡片新增进度条；无法精确计量的阶段（检查、解压、更新索引）显示不确定进度动画，避免长时间静默。进度条以安装进度为数据源，与文本进度保持一致。
+- **安装中途失败后需重新开始**：工具安装拆分为 `apk update` 与 `apk add` 两个可独立重入的子阶段，配合既有的 ready marker 机制，失败后重新进入对应阶段即可断点续装，无需重新下载解压基础环境。
+
+### 变更
+
+- 重构 `InstallerShellRunner`：由阻塞收集完整输出改为逐行流式读取并回调，为实时进度上报提供底层支撑，保持既有调用点行为不变。
+
+### 新增
+
+- `AlpineInstallProgress.progressFraction()`：将阶段进度统一换算为 `0.0f..1.0f` 的进度条取值，无总量时返回 `null` 以显示不确定动画。
+- 新增单元测试覆盖 `apk` 包进度解析与各阶段进度换算。
+
+## [2.6.2] - 2026-08-23
+
+### 新增
+
+- 初始公开版本：基于 Android 的 AI 助手 Eta，包含 Agent、Provider、Skill、Memory、Terminal 等核心模块。

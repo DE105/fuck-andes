@@ -30,8 +30,8 @@ android {
         applicationId = "fuck.andes"
         minSdk = 34
         targetSdk = 36
-        versionCode = 262
-        versionName = "2.6.2"
+        versionCode = 267
+        versionName = "2.6.7"
     }
 
     signingConfigs {
@@ -127,6 +127,14 @@ dependencies {
     // OkHttp：替代 HttpURLConnection，支持 SSE
     implementation(libs.okhttp)
     implementation(libs.okhttp.sse)
+
+    // MCP：官方 Kotlin SDK 客户端，支持 HTTP Streamable / SSE / stdio 传输
+    implementation(libs.mcp.sdk.client)
+    implementation(libs.ktor.client.cio)
+    // SDK 公开 API 暴露 ktor HttpClient 与 kotlinx.io Source/Sink，显式置于编译 classpath
+    // （Ktor 3.x 已将 SSE 插件并入 ktor-client-core，无需独立的 ktor-client-sse）
+    implementation(libs.ktor.client.core)
+    implementation(libs.kotlinx.io.core)
 
     // Kotlinx Serialization：Provider 设置与运行时配置 JSON
     implementation(libs.kotlinx.serialization.json)

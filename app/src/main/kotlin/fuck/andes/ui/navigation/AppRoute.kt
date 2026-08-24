@@ -39,6 +39,12 @@ sealed interface AppRoute : NavKey {
     data object LinuxEnvironment : AppRoute
 
     @Serializable
+    data object McpServers : AppRoute
+
+    @Serializable
+    data class McpServerEdit(val serverId: String? = null) : AppRoute
+
+    @Serializable
     data object ModelProviders : AppRoute
 
     @Serializable
