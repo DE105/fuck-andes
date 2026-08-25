@@ -44,29 +44,46 @@ jobs:
         run: sdkmanager --channel=3 "platforms;android-37.0"
 
       - name: 还原发布证书
+        id: keystore
         env:
           ETA_RELEASE_KEYSTORE_BASE64: ${{ secrets.ETA_RELEASE_KEYSTORE_BASE64 }}
           ETA_RELEASE_STORE_PASSWORD: ${{ secrets.ETA_RELEASE_STORE_PASSWORD }}
           ETA_RELEASE_KEY_ALIAS: ${{ secrets.ETA_RELEASE_KEY_ALIAS }}
           ETA_RELEASE_KEY_PASSWORD: ${{ secrets.ETA_RELEASE_KEY_PASSWORD }}
         run: |
-          if [[ -z "$ETA_RELEASE_KEYSTORE_BASE64" ||
-                -z "$ETA_RELEASE_STORE_PASSWORD" ||
-                -z "$ETA_RELEASE_KEY_ALIAS" ||
-                -z "$ETA_RELEASE_KEY_PASSWORD" ]]; then
-            echo "::error::缺少 Release 签名 Secrets，请检查仓库的 Actions Secrets。"
-            exit 1
+          if [[ -n "$ETA_RELEASE_KEYSTORE_BASE64" && \
+                -n "$ETA_RELEASE_STORE_PASSWORD" && \
+                -n "$ETA_RELEASE_KEY_ALIAS" && \
+                -n "$ETA_RELEASE_KEY_PASSWORD" ]]; then
+            echo "使用仓库配置的 Release 证书..."
+            printf '%s' "$ETA_RELEASE_KEYSTORE_BASE64" \
+              | base64 --decode \
+              > "$RUNNER_TEMP/eta-release.jks"
+            echo "store_password=$ETA_RELEASE_STORE_PASSWORD" >> "$GITHUB_OUTPUT"
+            echo "key_alias=$ETA_RELEASE_KEY_ALIAS" >> "$GITHUB_OUTPUT"
+            echo "key_password=$ETA_RELEASE_KEY_PASSWORD" >> "$GITHUB_OUTPUT"
+          else
+            echo "未配置 Release 签名 Secrets，生成临时自签名证书用于 Release APK 签名..."
+            keytool -genkeypair -v \
+              -keystore "$RUNNER_TEMP/eta-release.jks" \
+              -alias "eta" \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storepass "android" \
+              -keypass "android" \
+              -dname "CN=Eta, OU=Eta, O=Eta, L=Unknown, ST=Unknown, C=US"
+            echo "store_password=android" >> "$GITHUB_OUTPUT"
+            echo "key_alias=eta" >> "$GITHUB_OUTPUT"
+            echo "key_password=android" >> "$GITHUB_OUTPUT"
           fi
-          printf '%s' "$ETA_RELEASE_KEYSTORE_BASE64" \
-            | base64 --decode \
-            > "$RUNNER_TEMP/eta-release.jks"
 
       - name: 构建 Debug 与 Release APK
         env:
           ETA_RELEASE_STORE_FILE: ${{ runner.temp }}/eta-release.jks
-          ETA_RELEASE_STORE_PASSWORD: ${{ secrets.ETA_RELEASE_STORE_PASSWORD }}
-          ETA_RELEASE_KEY_ALIAS: ${{ secrets.ETA_RELEASE_KEY_ALIAS }}
-          ETA_RELEASE_KEY_PASSWORD: ${{ secrets.ETA_RELEASE_KEY_PASSWORD }}
+          ETA_RELEASE_STORE_PASSWORD: ${{ steps.keystore.outputs.store_password }}
+          ETA_RELEASE_KEY_ALIAS: ${{ steps.keystore.outputs.key_alias }}
+          ETA_RELEASE_KEY_PASSWORD: ${{ steps.keystore.outputs.key_password }}
         run: >-
           ./gradlew --no-daemon --no-configuration-cache
           :app:assembleDebug :app:assembleRelease
