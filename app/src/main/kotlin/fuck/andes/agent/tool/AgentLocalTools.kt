@@ -38,6 +38,8 @@ import fuck.andes.data.repository.AgentMemoryException
 import fuck.andes.data.repository.AgentMemoryMutation
 import fuck.andes.data.repository.AgentMemoryRepository
 import fuck.andes.data.repository.AgentMemoryWriteResult
+import fuck.andes.data.repository.MemoryLayerRepository
+import fuck.andes.agent.tool.MemoryCompactor
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
@@ -169,6 +171,15 @@ internal class AgentLocalTools(
                 "list_directory" -> textResult(terminalTool { listDirectory(args) })
                 "memory_get" -> textResult(memoryGet(args))
                 "memory_write" -> textResult(memoryWrite(args))
+                "memory_compact" -> textResult(memoryCompact(args))
+                "memory_atom_write" -> textResult(fourLayerMemory { memoryAtomWrite(args) })
+                "memory_atom_search" -> textResult(fourLayerMemory { memoryAtomSearch(args) })
+                "memory_atom_delete" -> textResult(fourLayerMemory { memoryAtomDelete(args) })
+                "memory_scenario_save" -> textResult(fourLayerMemory { memoryScenarioSave(args) })
+                "memory_scenario_read" -> textResult(fourLayerMemory { memoryScenarioRead(args) })
+                "memory_profile_update" -> textResult(fourLayerMemory { memoryProfileUpdate(args) })
+                "memory_profile_delete" -> textResult(fourLayerMemory { memoryProfileDelete(args) })
+                "memory_conversation_search" -> textResult(fourLayerMemory { memoryConversationSearch(args) })
                 "skills_list" -> textResult(skillsList(args))
                 "skills_read" -> textResult(skillsRead(args))
                 "skills_read_resource" -> textResult(skillsReadResource(args))
@@ -297,6 +308,203 @@ internal class AgentLocalTools(
         }
     } catch (failure: AgentMemoryException) {
         errorResult(failure.code, failure.message ?: "记忆写入失败")
+    }
+
+
+    private fun memoryCompact(args: JSONObject): String = try {
+        val dryRun = args.optBoolean("dry_run", false)
+        val section = args.optString("section").trim().takeIf(String::isNotBlank)
+        val snapshot = AgentMemoryRepository.snapshot()
+        val result = MemoryCompactor.compact(snapshot.content, section)
+        val sections = JSONArray()
+        result.sections.forEach { sec ->
+            sections.put(
+                JSONObject()
+                    .put("heading", sec.heading)
+                    .put("lines_before", sec.linesBefore)
+                    .put("lines_after", sec.linesAfter)
+                    .put("removed", sec.removed)
+                    .put("long", sec.long),
+            )
+        }
+        if (dryRun || !result.changed) {
+            return JSONObject()
+                .put("ok", true)
+                .put("dry_run", dryRun)
+                .put("changed", result.changed)
+                .put("total_removed", result.totalRemoved)
+                .put("revision", snapshot.revision)
+                .put("bytes", snapshot.byteSize)
+                .put("line_count", snapshot.lineCount)
+                .put("sections", sections)
+                .toString()
+        }
+        when (
+            val write = AgentMemoryRepository.mutate(
+                AgentMemoryMutation.ReplaceRange(
+                    revision = snapshot.revision,
+                    startLine = 1,
+                    endLine = snapshot.lineCount,
+                    content = result.content,
+                ),
+            )
+        ) {
+            is AgentMemoryWriteResult.Success -> JSONObject()
+                .put("ok", true)
+                .put("dry_run", false)
+                .put("changed", true)
+                .put("total_removed", result.totalRemoved)
+                .put("revision", write.snapshot.revision)
+                .put("bytes_before", snapshot.byteSize)
+                .put("bytes_after", write.snapshot.byteSize)
+                .put("line_count", write.snapshot.lineCount)
+                .put("sections", sections)
+                .toString()
+            is AgentMemoryWriteResult.Conflict -> JSONObject()
+                .put("ok", false)
+                .put("code", "MEMORY_CONFLICT")
+                .put("message", "记忆已发生变化，请先调用 memory_get 获取最新内容后重试")
+                .put("revision", write.snapshot.revision)
+                .toString()
+        }
+    } catch (failure: AgentMemoryException) {
+        errorResult(failure.code, failure.message ?: "记忆整理失败")
+    }
+
+    /** 四层记忆开关门卫：关闭时拒绝执行并明确提示。 */
+    private fun fourLayerMemory(block: () -> String): String {
+        if (!memoryToolsEnabled()) {
+            return errorResult("MEMORY_TOOLS_DISABLED", "请先在设置中启用记忆功能")
+        }
+        if (!runBlocking { MemoryLayerRepository.isEnabled() }) {
+            return errorResult("FOUR_LAYER_MEMORY_DISABLED", "四层记忆已关闭，可在记忆页面重新开启")
+        }
+        return block()
+    }
+
+    private fun memoryAtomWrite(args: JSONObject): String = runBlocking {
+        val content = args.optString("content")
+        val category = args.optString("category", "general")
+        if (content.isBlank()) return@runBlocking errorResult("INVALID_ARGUMENT", "原子记忆内容不能为空")
+        val atom = MemoryLayerRepository.writeAtom(content, category)
+        JSONObject()
+            .put("ok", true)
+            .put("id", atom.id)
+            .put("category", atom.category)
+            .put("content", atom.content)
+            .toString()
+    }
+
+    private fun memoryAtomSearch(args: JSONObject): String = runBlocking {
+        val query = args.optString("query")
+        if (query.isBlank()) return@runBlocking errorResult("INVALID_ARGUMENT", "搜索关键词不能为空")
+        val atoms = MemoryLayerRepository.searchAtoms(query, args.optInt("limit", 10))
+        JSONObject()
+            .put("ok", true)
+            .put("count", atoms.size)
+            .put(
+                "atoms",
+                JSONArray().also { array ->
+                    atoms.forEach { atom ->
+                        array.put(
+                            JSONObject()
+                                .put("id", atom.id)
+                                .put("category", atom.category)
+                                .put("content", atom.content)
+                                .put("updated_at", atom.updatedAt),
+                        )
+                    }
+                },
+            )
+            .toString()
+    }
+
+    private fun memoryAtomDelete(args: JSONObject): String = runBlocking {
+        val id = args.optString("id")
+        if (id.isBlank()) return@runBlocking errorResult("INVALID_ARGUMENT", "缺少原子记忆 id")
+        MemoryLayerRepository.deleteAtom(id)
+        JSONObject().put("ok", true).put("deleted", id).toString()
+    }
+
+    private fun memoryScenarioSave(args: JSONObject): String = runBlocking {
+        val name = args.optString("name")
+        val content = args.optString("content")
+        if (name.isBlank() || content.isBlank()) {
+            return@runBlocking errorResult("INVALID_ARGUMENT", "场景名称与内容不能为空")
+        }
+        val scenario = MemoryLayerRepository.saveScenario(name, content)
+        JSONObject()
+            .put("ok", true)
+            .put("name", scenario.name)
+            .put("updated", true)
+            .toString()
+    }
+
+    private fun memoryScenarioRead(args: JSONObject): String = runBlocking {
+        val name = args.optString("name")
+        if (name.isBlank()) return@runBlocking errorResult("INVALID_ARGUMENT", "场景名称不能为空")
+        val scenario = MemoryLayerRepository.readScenario(name)
+        if (scenario == null) {
+            return@runBlocking JSONObject()
+                .put("ok", true)
+                .put("found", false)
+                .put("message", "未找到名为「$name」的场景记忆")
+                .toString()
+        }
+        JSONObject()
+            .put("ok", true)
+            .put("found", true)
+            .put("name", scenario.name)
+            .put("content", scenario.content)
+            .put("updated_at", scenario.updatedAt)
+            .toString()
+    }
+
+    private fun memoryProfileUpdate(args: JSONObject): String = runBlocking {
+        val key = args.optString("key")
+        val value = args.optString("value")
+        if (key.isBlank() || value.isBlank()) {
+            return@runBlocking errorResult("INVALID_ARGUMENT", "画像键与值不能为空")
+        }
+        val profile = MemoryLayerRepository.updateProfile(key, value)
+        JSONObject()
+            .put("ok", true)
+            .put("key", profile.key)
+            .put("value", profile.value)
+            .toString()
+    }
+
+    private fun memoryProfileDelete(args: JSONObject): String = runBlocking {
+        val key = args.optString("key")
+        if (key.isBlank()) return@runBlocking errorResult("INVALID_ARGUMENT", "画像键不能为空")
+        MemoryLayerRepository.deleteProfile(key)
+        JSONObject().put("ok", true).put("deleted", key).toString()
+    }
+
+    private fun memoryConversationSearch(args: JSONObject): String = runBlocking {
+        val query = args.optString("query")
+        if (query.isBlank()) return@runBlocking errorResult("INVALID_ARGUMENT", "搜索关键词不能为空")
+        val conversations = MemoryLayerRepository.searchConversations(
+            query,
+            args.optInt("limit", 10),
+        )
+        JSONObject()
+            .put("ok", true)
+            .put("count", conversations.size)
+            .put(
+                "conversations",
+                JSONArray().also { array ->
+                    conversations.forEach { conversation ->
+                        array.put(
+                            JSONObject()
+                                .put("role", conversation.role)
+                                .put("content", conversation.content.take(500))
+                                .put("created_at", conversation.createdAt),
+                        )
+                    }
+                },
+            )
+            .toString()
     }
 
     private fun browserUse(args: JSONObject, toolCallId: String): AgentModelClient.ToolResult {
@@ -1326,6 +1534,18 @@ internal class AgentLocalTools(
         val DEVICE_TOOL_NAMES =
             DEVICE_DIRECT_TOOL_NAMES + DEVICE_SENSITIVE_READ_TOOL_NAMES +
                 DEVICE_SENSITIVE_ACTION_TOOL_NAMES
-        val MEMORY_TOOL_NAMES = setOf("memory_get", "memory_write")
+        val MEMORY_TOOL_NAMES = setOf(
+            "memory_get",
+            "memory_write",
+            "memory_compact",
+            "memory_atom_write",
+            "memory_atom_search",
+            "memory_atom_delete",
+            "memory_scenario_save",
+            "memory_scenario_read",
+            "memory_profile_update",
+            "memory_profile_delete",
+            "memory_conversation_search",
+        )
     }
 }

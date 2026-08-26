@@ -22,6 +22,8 @@ import fuck.andes.agent.voice.EtaAssistantOverlayService
 import fuck.andes.core.AndroidAgentLogger
 import fuck.andes.core.safeLogType
 import fuck.andes.data.repository.AgentMemoryRepository
+import fuck.andes.data.repository.MemoryLayerRepository
+import fuck.andes.data.repository.SemanticMemoryIndexer
 import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
 
@@ -90,9 +92,25 @@ internal class AgentRuntimeRunExecutor(
             val memoryEnabled = runBlocking { AgentMemoryRepository.isEnabled() }
             val memoryContext = if (memoryEnabled) {
                 runCatching {
+                    val semanticRetrieval = runCatching {
+                        runBlocking {
+                            SemanticMemoryIndexer(appContext).search(request.prompt, 5)
+                                .takeIf { it.isNotEmpty() }
+                                ?.joinToString(
+                                    separator = "\n",
+                                    prefix = "\n\n<!-- 语义检索到的相关记忆 -->\n<memory_retrieval>\n",
+                                    postfix = "\n</memory_retrieval>",
+                                ) { "- ${it.content}" }
+                                ?: ""
+                        }
+                    }.getOrElse { "" }
+                    val fourLayerSummary = runBlocking {
+                        MemoryLayerRepository.buildContextSummary()
+                    } + semanticRetrieval
                     AgentMemoryContextBuilder.build(
                         snapshot = AgentMemoryRepository.snapshot(),
                         contextWindow = request.config.contextWindow,
+                        fourLayerSummary = fourLayerSummary,
                     )
                 }.getOrElse { throwable ->
                     AndroidAgentLogger.warnThrottled("agent_memory_context_failed") {

@@ -1,6 +1,7 @@
 package fuck.andes.agent.model
 
 import fuck.andes.agent.memory.AgentMemoryContext
+import fuck.andes.data.repository.AgentMemoryStore
 import fuck.andes.agent.skill.SkillContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -102,6 +103,9 @@ internal object AgentPromptBuilder {
             appendLine("只保存跨对话仍有价值的稳定事实、偏好、关系和持续项目；不要保存密钥、验证码、凭据或一次性请求。")
             appendLine("需要更新时调用 memory_write，优先替换已有章节并去重；只有需要详细背景或发生 revision 冲突时才调用 memory_get。")
             appendLine("revision=${context.revision} | bytes=${context.byteSize} | core_budget_chars=${context.coreBudgetChars}")
+            if (context.byteSize > 0 && context.byteSize >= AgentMemoryStore.MAX_FILE_BYTES * 0.85) {
+                appendLine("⚠ MEMORY.md 已使用 ${context.byteSize} 字节（上限 ${AgentMemoryStore.MAX_FILE_BYTES}）：接近上限，写入前请优先用 memory_write 合并或精简旧章节。")
+            }
             if (context.coreContent.isNotBlank()) {
                 appendLine()
                 appendLine("<memory_core>")
@@ -116,6 +120,11 @@ internal object AgentPromptBuilder {
                 appendLine("<memory_headings>")
                 appendLine(context.headingIndex)
                 appendLine("</memory_headings>")
+            }
+            context.fourLayerSummary?.let { summary ->
+                appendLine()
+                appendLine("<!-- 本地四层记忆（L1 原子 / L2 场景 / L3 画像）：画像常驻注入，原子与场景为最近摘要。详细内容用 memory_atom_search / memory_scenario_read 按需读取；L0 对话记忆用 memory_conversation_search 检索。 -->")
+                appendLine(summary)
             }
         }.trim()
         return systemMessage(body)

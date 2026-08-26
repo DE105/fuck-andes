@@ -97,5 +97,30 @@ internal object AgentMemoryToolCatalog {
                         .put("required", JSONArray().put("mode").put("revision")),
                 ),
             )
+            .put(
+                AgentToolSchema.function(
+                    name = "memory_compact",
+                    description = "自动整理 MEMORY.md：同章节重复行去重、连续空行合并、行尾空白清理（绝不删除有内容行）。超长章节（>80 行）会在报告中标记 long。dry_run=true 只返回报告不修改文件。需要整理指定章节时传 section（标题包含该文本）。",
+                    parameters = JSONObject()
+                        .put("type", "object")
+                        .put(
+                            "properties",
+                            JSONObject()
+                                .put(
+                                    "section",
+                                    JSONObject()
+                                        .put("type", "string")
+                                        .put("maxLength", 100)
+                                        .put("description", "可选：只整理标题包含该文本的章节，例如 \"# 核心记忆\" 或 \"## 项目\"。"),
+                                )
+                                .put(
+                                    "dry_run",
+                                    JSONObject()
+                                        .put("type", "boolean")
+                                        .put("description", "true 只返回报告不写文件，默认 false。"),
+                                ),
+                        ),
+                ),
+            )
     }
 }

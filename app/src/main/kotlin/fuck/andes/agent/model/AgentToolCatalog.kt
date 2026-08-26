@@ -30,7 +30,10 @@ internal object AgentToolCatalog {
                 githubDiscovery = skillGitHubDiscovery,
                 githubInstall = skillGitHubInstall,
             )
-            if (memoryTools) AgentMemoryToolCatalog.appendTo(tools)
+            if (memoryTools) {
+                AgentMemoryToolCatalog.appendTo(tools)
+                AgentFourLayerMemoryToolCatalog.appendTo(tools)
+            }
             if (terminalTools) {
                 AgentFileVisionToolCatalog.appendTo(tools)
                 AgentTerminalToolCatalog.appendTo(tools)

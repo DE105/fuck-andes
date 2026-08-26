@@ -41,5 +41,14 @@ internal object AgentSensitiveToolPolicy {
         "set_setting",
         "memory_get",
         "memory_write",
+        "memory_compact",
+        "memory_atom_write",
+        "memory_atom_search",
+        "memory_atom_delete",
+        "memory_scenario_save",
+        "memory_scenario_read",
+        "memory_profile_update",
+        "memory_profile_delete",
+        "memory_conversation_search",
     )
 }
