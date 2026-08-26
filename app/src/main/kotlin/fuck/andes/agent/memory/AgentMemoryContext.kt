@@ -10,6 +10,7 @@ internal data class AgentMemoryContext(
     val coreTruncated: Boolean,
     val headingIndex: String,
     val coreBudgetChars: Int,
+    val fourLayerSummary: String? = null,
 ) {
     companion object {
         val DISABLED = AgentMemoryContext(
@@ -20,6 +21,7 @@ internal data class AgentMemoryContext(
             coreTruncated = false,
             headingIndex = "",
             coreBudgetChars = 0,
+            fourLayerSummary = null,
         )
     }
 }
@@ -38,6 +40,7 @@ internal object AgentMemoryContextBuilder {
     fun build(
         snapshot: AgentMemorySnapshot,
         contextWindow: Int?,
+        fourLayerSummary: String? = null,
     ): AgentMemoryContext {
         val coreBudget = coreBudgetChars(contextWindow)
         val core = extractCore(snapshot.content)
@@ -53,6 +56,7 @@ internal object AgentMemoryContextBuilder {
             coreTruncated = core.length > coreBudget,
             headingIndex = headings,
             coreBudgetChars = coreBudget,
+            fourLayerSummary = fourLayerSummary,
         )
     }
 

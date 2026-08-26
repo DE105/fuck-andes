@@ -134,6 +134,9 @@ dependencies {
     // Coroutines：显式引入，避免依赖传递版本不确定
     implementation(libs.kotlinx.coroutines.android)
 
+    // ONNX Runtime：本地 bge-small-zh 语义 embedding（四层记忆 RAG）
+    implementation(libs.onnxruntime.android)
+
     testImplementation(libs.junit)
     testImplementation(libs.json)
     testImplementation(libs.room.testing)

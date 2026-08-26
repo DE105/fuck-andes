@@ -59,3 +59,8 @@
 # 不在 App 层重复保留整个类或包，避免阻断裁剪、内联和混淆。
 # 保留源码与行号属性，便于使用 release mapping 还原线上堆栈。
 -keepattributes SourceFile,LineNumberTable
+
+# ── ONNX Runtime ──────────────────────────────────────────────────────────
+# onnxruntime 通过 JNI 反射调用，保留以防 R8 混淆破坏推理
+-keep class ai.onnxruntime.** { *; }
+-dontwarn ai.onnxruntime.**

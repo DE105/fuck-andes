@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -28,6 +29,10 @@ internal object SettingsDataStore {
     private val SELECTED_PROVIDER_ID = stringPreferencesKey("selected_provider_id")
     private val SELECTED_MODEL_ID = stringPreferencesKey("selected_model_id")
     private val MEMORY_ENABLED = booleanPreferencesKey("memory_enabled")
+    private val FOUR_LAYER_MEMORY_ENABLED = booleanPreferencesKey("four_layer_memory_enabled")
+    private val MEMORY_AUTO_DISTILL_ENABLED = booleanPreferencesKey("memory_auto_distill_enabled")
+    private val MEMORY_DISTILL_CURSOR = longPreferencesKey("memory_distill_cursor")
+    private val MEMORY_DISTILL_MD_SYNC = booleanPreferencesKey("memory_distill_md_sync")
     private val APPEARANCE_THEME_MODE = stringPreferencesKey("appearance_theme_mode")
     private val APPEARANCE_MONET_ENABLED = booleanPreferencesKey("appearance_monet_enabled")
     private val APPEARANCE_PALETTE_STYLE = stringPreferencesKey("appearance_palette_style")
@@ -76,6 +81,10 @@ internal object SettingsDataStore {
             prefs.putOrRemove(SELECTED_PROVIDER_ID, updated.selectedProviderId)
             prefs.putOrRemove(SELECTED_MODEL_ID, updated.selectedModelId)
             prefs[MEMORY_ENABLED] = updated.memoryEnabled
+            prefs[FOUR_LAYER_MEMORY_ENABLED] = updated.fourLayerMemoryEnabled
+            prefs[MEMORY_AUTO_DISTILL_ENABLED] = updated.memoryAutoDistillEnabled
+            prefs[MEMORY_DISTILL_CURSOR] = updated.memoryDistillCursor
+            prefs[MEMORY_DISTILL_MD_SYNC] = updated.memoryDistillMdSync
             prefs.putAppearance(updated.appearance.normalized())
         }
     }
@@ -102,6 +111,15 @@ internal object SettingsDataStore {
 
     fun memoryEnabledFlow(): Flow<Boolean> =
         settingsFlow().map { it.memoryEnabled }
+
+    fun fourLayerMemoryEnabledFlow(): Flow<Boolean> =
+        settingsFlow().map { it.fourLayerMemoryEnabled }
+
+    fun memoryAutoDistillEnabledFlow(): Flow<Boolean> =
+        settingsFlow().map { it.memoryAutoDistillEnabled }
+
+    fun memoryDistillMdSyncFlow(): Flow<Boolean> =
+        settingsFlow().map { it.memoryDistillMdSync }
 
     fun appearanceSettingsFlow(): Flow<AppearanceSettings> =
         settingsFlow().map { it.appearance }
@@ -142,6 +160,22 @@ internal object SettingsDataStore {
         updateSettings { it.copy(memoryEnabled = enabled) }
     }
 
+    suspend fun setFourLayerMemoryEnabled(enabled: Boolean) {
+        updateSettings { it.copy(fourLayerMemoryEnabled = enabled) }
+    }
+
+    suspend fun setMemoryAutoDistillEnabled(enabled: Boolean) {
+        updateSettings { it.copy(memoryAutoDistillEnabled = enabled) }
+    }
+
+    suspend fun setMemoryDistillCursor(value: Long) {
+        updateSettings { it.copy(memoryDistillCursor = value) }
+    }
+
+    suspend fun setMemoryDistillMdSync(enabled: Boolean) {
+        updateSettings { it.copy(memoryDistillMdSync = enabled) }
+    }
+
     suspend fun setAppearanceSettings(settings: AppearanceSettings) {
         updateSettings { it.copy(appearance = settings.normalized()) }
     }
@@ -173,6 +207,10 @@ internal object SettingsDataStore {
         selectedProviderId = this[SELECTED_PROVIDER_ID],
         selectedModelId = this[SELECTED_MODEL_ID],
         memoryEnabled = this[MEMORY_ENABLED] ?: true,
+        fourLayerMemoryEnabled = this[FOUR_LAYER_MEMORY_ENABLED] ?: true,
+        memoryAutoDistillEnabled = this[MEMORY_AUTO_DISTILL_ENABLED] ?: true,
+        memoryDistillCursor = this[MEMORY_DISTILL_CURSOR] ?: 0L,
+        memoryDistillMdSync = this[MEMORY_DISTILL_MD_SYNC] ?: false,
         appearance = AppearanceSettings(
             themeMode = AppearanceThemeMode.fromPersistedValue(this[APPEARANCE_THEME_MODE]),
             monetEnabled = this[APPEARANCE_MONET_ENABLED] ?: false,
