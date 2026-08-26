@@ -39,12 +39,17 @@ import fuck.andes.core.safeLogType
 import fuck.andes.data.model.ModelReasoningCapabilities
 import fuck.andes.data.model.ReasoningEffort
 import fuck.andes.data.repository.AgentMemoryRepository
+import fuck.andes.data.repository.AgentMemorySnapshot
+import fuck.andes.data.repository.MemoryLayerRepository
 import fuck.andes.data.repository.ProviderRepository
 import fuck.andes.data.repository.RuntimeConfigRepository
 import fuck.andes.ui.model.AgentChatHomeUiState
 import fuck.andes.ui.model.AgentChatMessageUi
 import fuck.andes.ui.model.AgentMessageUi
 import fuck.andes.ui.model.AgentMemoryUiState
+import fuck.andes.ui.model.MemoryAtomUi
+import fuck.andes.ui.model.MemoryProfileUi
+import fuck.andes.ui.model.MemoryScenarioUi
 import fuck.andes.ui.model.AgentModelPickerProjector
 import fuck.andes.ui.model.AgentModelPickerUiState
 import fuck.andes.ui.model.MessageEditUiState
@@ -229,17 +234,68 @@ internal class AgentAppState(
                 val snapshot = AgentMemoryRepository.snapshot()
                 val enabled = AgentMemoryRepository.isEnabled()
                 val contextWindow = RuntimeConfigRepository.currentRuntimeConfig()?.contextWindow
-                Triple(snapshot, enabled, AgentMemoryContextBuilder.coreBudgetChars(contextWindow))
+                val layers = MemoryLayerRepository.isEnabled()
+                val fourLayerEnabled = layers
+                val fourLayerLoading = false
+                val atoms = if (layers) {
+                    MemoryLayerRepository.recentAtoms(100)
+                        .map { MemoryAtomUi(it.id, it.content, it.category, it.updatedAt) }
+                } else {
+                    emptyList()
+                }
+                val scenarios = if (layers) {
+                    MemoryLayerRepository.listScenarios(200)
+                        .map { MemoryScenarioUi(it.id, it.name, it.content, it.updatedAt) }
+                } else {
+                    emptyList()
+                }
+                val profile = if (layers) {
+                    MemoryLayerRepository.profileAll()
+                        .map { MemoryProfileUi(it.key, it.value, it.updatedAt) }
+                } else {
+                    emptyList()
+                }
+                val conversationCount = if (layers) MemoryLayerRepository.conversationCount() else 0
+                val distillMdSync = if (layers) MemoryLayerRepository.distillMdSyncEnabled() else false
+                data class MemoryUiLoad(
+                    val snapshot: AgentMemorySnapshot,
+                    val enabled: Boolean,
+                    val coreBudget: Int,
+                    val fourLayerEnabled: Boolean,
+                    val atoms: List<MemoryAtomUi>,
+                    val scenarios: List<MemoryScenarioUi>,
+                    val profile: List<MemoryProfileUi>,
+                    val conversationCount: Int,
+                    val distillMdSync: Boolean,
+                )
+                MemoryUiLoad(
+                    snapshot = snapshot,
+                    enabled = enabled,
+                    coreBudget = AgentMemoryContextBuilder.coreBudgetChars(contextWindow),
+                    fourLayerEnabled = fourLayerEnabled,
+                    atoms = atoms,
+                    scenarios = scenarios,
+                    profile = profile,
+                    conversationCount = conversationCount,
+                    distillMdSync = distillMdSync,
+                )
             }.fold(
-                onSuccess = { (snapshot, enabled, coreBudget) ->
+                onSuccess = { loaded ->
                     withContext(Dispatchers.Main) {
                         memoryState = AgentMemoryUiState(
-                            enabled = enabled,
+                            enabled = loaded.enabled,
                             isLoading = false,
-                            draft = snapshot.content,
-                            savedContent = snapshot.content,
-                            draftBytes = snapshot.byteSize,
-                            coreBudgetChars = coreBudget,
+                            draft = loaded.snapshot.content,
+                            savedContent = loaded.snapshot.content,
+                            draftBytes = loaded.snapshot.byteSize,
+                            coreBudgetChars = loaded.coreBudget,
+                            fourLayerEnabled = loaded.fourLayerEnabled,
+                            fourLayerLoading = false,
+                            atoms = loaded.atoms,
+                            scenarios = loaded.scenarios,
+                            profile = loaded.profile,
+                            conversationCount = loaded.conversationCount,
+                            distillMdSync = loaded.distillMdSync,
                         )
                     }
                 },
@@ -988,6 +1044,11 @@ internal class AgentAppState(
         val initialPersistence = persistConversations()
 
         currentRunJob = scope.launch(Dispatchers.IO) {
+            runCatching {
+                if (MemoryLayerRepository.isEnabled()) {
+                    MemoryLayerRepository.recordConversation("user", prompt)
+                }
+            }
             // write-ahead：用户消息未提交前不把可能产生副作用的 run 交给 Runtime。
             if (!initialPersistence.await()) {
                 withContext(Dispatchers.Main) {
@@ -1803,6 +1864,16 @@ internal class AgentAppState(
         acknowledgeRuntimeResult: Boolean = false,
     ) {
         flushPendingRunDelta(runId)
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                if (MemoryLayerRepository.isEnabled()) {
+                    MemoryLayerRepository.recordConversation(
+                        "assistant",
+                        if (result.ok) result.content else (result.error ?: ""),
+                    )
+                }
+            }
+        }
         if (runId == currentRunId) {
             currentRunId = null
             currentRunJob = null
@@ -1821,6 +1892,9 @@ internal class AgentAppState(
                 SystemNoticeCode.RuntimeFailed,
                 result.error,
             )
+        }
+        if (result.ok && result.content.isNotBlank()) {
+            distillConversationIfWorthwhile(runId, result.content)
         }
         setConversationStreaming(runId, false)
         runMessageProjector.clearRun(runId)
@@ -2495,14 +2569,287 @@ private fun isRootAvailable(): Boolean {
     } catch (e: Exception) {
         false
     }
-}
 
-private fun hasAppListAccess(context: Context): Boolean {
-    return try {
-        val pm = context.packageManager
-        val packages = pm.getInstalledPackages(0)
-        packages.size > 10
-    } catch (e: Exception) {
-        false
+    // ── 本地四层记忆（L0–L3）UI 接线 ────────────────────────────
+
+    fun setFourLayerEnabled(enabled: Boolean) {
+        scope.launch(Dispatchers.IO) {
+            runCatching { MemoryLayerRepository.setEnabled(enabled) }
+                .fold(
+                    onSuccess = {
+                        withContext(Dispatchers.Main) {
+                            memoryState = memoryState.copy(
+                                fourLayerEnabled = enabled,
+                                fourLayerLoading = false,
+                                notice = null,
+                            )
+                        }
+                    },
+                    onFailure = { throwable ->
+                        AndroidAgentLogger.warnThrottled("agent_four_layer_toggle_failed") {
+                            "Four-layer memory toggle failed: type=${throwable.safeLogType()}"
+                        }
+                        withContext(Dispatchers.Main) {
+                            memoryState = memoryState.copy(
+                                fourLayerLoading = false,
+                                notice = throwable.message,
+                            )
+                        }
+                    },
+                )
+        }
     }
+
+    fun setDistillMdSyncEnabled(enabled: Boolean) {
+        scope.launch(Dispatchers.IO) {
+            runCatching { MemoryLayerRepository.setDistillMdSyncEnabled(enabled) }
+                .fold(
+                    onSuccess = {
+                        withContext(Dispatchers.Main) {
+                            memoryState = memoryState.copy(
+                                distillMdSync = enabled,
+                                notice = null,
+                            )
+                        }
+                    },
+                    onFailure = { throwable ->
+                        AndroidAgentLogger.warnThrottled("agent_distill_md_sync_toggle_failed") {
+                            "Distill-MD sync toggle failed: type=${throwable.safeLogType()}"
+                        }
+                        withContext(Dispatchers.Main) {
+                            memoryState = memoryState.copy(notice = throwable.message)
+                        }
+                    },
+                )
+        }
+    }
+
+    fun refreshMemoryLayers() {
+        memoryState = memoryState.copy(fourLayerLoading = true, notice = null)
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                data class LayersSnapshot(
+                    val enabled: Boolean,
+                    val atoms: List<MemoryAtomUi>,
+                    val scenarios: List<MemoryScenarioUi>,
+                    val profile: List<MemoryProfileUi>,
+                    val conversationCount: Int,
+                    val distillMdSync: Boolean,
+                )
+                if (!MemoryLayerRepository.isEnabled()) {
+                    LayersSnapshot(false, emptyList(), emptyList(), emptyList(), 0, false)
+                } else {
+                    LayersSnapshot(
+                        enabled = true,
+                        atoms = MemoryLayerRepository.recentAtoms(100)
+                            .map { MemoryAtomUi(it.id, it.content, it.category, it.updatedAt) },
+                        scenarios = MemoryLayerRepository.listScenarios(200)
+                            .map { MemoryScenarioUi(it.id, it.name, it.content, it.updatedAt) },
+                        profile = MemoryLayerRepository.profileAll()
+                            .map { MemoryProfileUi(it.key, it.value, it.updatedAt) },
+                        conversationCount = MemoryLayerRepository.conversationCount(),
+                        distillMdSync = MemoryLayerRepository.distillMdSyncEnabled(),
+                    )
+                }
+            }.fold(
+                onSuccess = { snapshot ->
+                    withContext(Dispatchers.Main) {
+                        memoryState = memoryState.copy(
+                            fourLayerLoading = false,
+                            fourLayerEnabled = snapshot.enabled,
+                            atoms = snapshot.atoms,
+                            scenarios = snapshot.scenarios,
+                            profile = snapshot.profile,
+                            conversationCount = snapshot.conversationCount,
+                            distillMdSync = snapshot.distillMdSync,
+                            notice = null,
+                        )
+                    }
+                },
+                onFailure = { throwable ->
+                    AndroidAgentLogger.warnThrottled("agent_memory_layers_load_failed") {
+                        "Four-layer memory UI load failed: type=${throwable.safeLogType()}"
+                    }
+                    withContext(Dispatchers.Main) {
+                        memoryState = memoryState.copy(
+                            fourLayerLoading = false,
+                            notice = throwable.message,
+                        )
+                    }
+                },
+            )
+        }
+    }
+
+    fun updateAtomInput(content: String) {
+        memoryState = memoryState.copy(atomInput = content)
+    }
+
+    fun updateAtomCategory(category: String) {
+        memoryState = memoryState.copy(atomCategory = category)
+    }
+
+    fun addAtom() {
+        val content = memoryState.atomInput.trim()
+        if (content.isBlank()) return
+        memoryState = memoryState.copy(fourLayerLoading = true, notice = null)
+        scope.launch(Dispatchers.IO) {
+            runCatching { MemoryLayerRepository.writeAtom(content, memoryState.atomCategory) }
+                .fold(
+                    onSuccess = {
+                        withContext(Dispatchers.Main) {
+                            memoryState = memoryState.copy(
+                                fourLayerLoading = false,
+                                atomInput = "",
+                                notice = "已添加原子记忆",
+                            )
+                        }
+                        refreshMemoryLayers()
+                    },
+                    onFailure = { throwable ->
+                        withContext(Dispatchers.Main) {
+                            memoryState = memoryState.copy(
+                                fourLayerLoading = false,
+                                notice = throwable.message,
+                            )
+                        }
+                    },
+                )
+        }
+    }
+
+    fun deleteAtom(id: String) {
+        scope.launch(Dispatchers.IO) {
+            runCatching { MemoryLayerRepository.deleteAtom(id) }
+                .onSuccess { refreshMemoryLayers() }
+                .onFailure { throwable ->
+                    withContext(Dispatchers.Main) {
+                        memoryState = memoryState.copy(notice = throwable.message)
+                    }
+                }
+        }
+    }
+
+    fun updateScenarioNameInput(name: String) {
+        memoryState = memoryState.copy(scenarioNameInput = name)
+    }
+
+    fun updateScenarioContentInput(content: String) {
+        memoryState = memoryState.copy(scenarioContentInput = content)
+    }
+
+    fun saveScenario() {
+        val name = memoryState.scenarioNameInput.trim()
+        val content = memoryState.scenarioContentInput.trim()
+        if (name.isBlank() || content.isBlank()) return
+        memoryState = memoryState.copy(fourLayerLoading = true, notice = null)
+        scope.launch(Dispatchers.IO) {
+            runCatching { MemoryLayerRepository.saveScenario(name, content) }
+                .fold(
+                    onSuccess = {
+                        withContext(Dispatchers.Main) {
+                            memoryState = memoryState.copy(
+                                fourLayerLoading = false,
+                                scenarioNameInput = "",
+                                scenarioContentInput = "",
+                                notice = "已保存场景「$name」",
+                            )
+                        }
+                        refreshMemoryLayers()
+                    },
+                    onFailure = { throwable ->
+                        withContext(Dispatchers.Main) {
+                            memoryState = memoryState.copy(
+                                fourLayerLoading = false,
+                                notice = throwable.message,
+                            )
+                        }
+                    },
+                )
+        }
+    }
+
+    fun deleteScenario(id: String) {
+        scope.launch(Dispatchers.IO) {
+            runCatching { MemoryLayerRepository.deleteScenario(id) }
+                .onSuccess { refreshMemoryLayers() }
+                .onFailure { throwable ->
+                    withContext(Dispatchers.Main) {
+                        memoryState = memoryState.copy(notice = throwable.message)
+                    }
+                }
+        }
+    }
+
+    fun updateProfileKeyInput(key: String) {
+        memoryState = memoryState.copy(profileKeyInput = key)
+    }
+
+    fun updateProfileValueInput(value: String) {
+        memoryState = memoryState.copy(profileValueInput = value)
+    }
+
+    fun addProfile() {
+        val key = memoryState.profileKeyInput.trim()
+        val value = memoryState.profileValueInput.trim()
+        if (key.isBlank() || value.isBlank()) return
+        memoryState = memoryState.copy(fourLayerLoading = true, notice = null)
+        scope.launch(Dispatchers.IO) {
+            runCatching { MemoryLayerRepository.updateProfile(key, value) }
+                .fold(
+                    onSuccess = {
+                        withContext(Dispatchers.Main) {
+                            memoryState = memoryState.copy(
+                                fourLayerLoading = false,
+                                profileKeyInput = "",
+                                profileValueInput = "",
+                                notice = "已添加画像「$key」",
+                            )
+                        }
+                        refreshMemoryLayers()
+                    },
+                    onFailure = { throwable ->
+                        withContext(Dispatchers.Main) {
+                            memoryState = memoryState.copy(
+                                fourLayerLoading = false,
+                                notice = throwable.message,
+                            )
+                        }
+                    },
+                )
+        }
+    }
+
+    fun deleteProfile(key: String) {
+        scope.launch(Dispatchers.IO) {
+            runCatching { MemoryLayerRepository.deleteProfile(key) }
+                .onSuccess { refreshMemoryLayers() }
+                .onFailure { throwable ->
+                    withContext(Dispatchers.Main) {
+                        memoryState = memoryState.copy(notice = throwable.message)
+                    }
+                }
+        }
+    }
+
+    /**
+     * 会话成功完成后，若最终交付内容含明确结论/决定/交付，保守沉淀为 L2 场景记忆，
+     * 便于长任务跨会话恢复上下文。只写 L2 场景、可回滚；绝不因沉淀失败影响主流程。
+     */
+    private fun distillConversationIfWorthwhile(runId: String, deliverable: String) {
+        val conversationId = conversationIdForRun(runId) ?: return
+        val title = conversationTitles[conversationId]?.trim()?.takeIf { it.isNotBlank() } ?: return
+        val distilled = fuck.andes.agent.model.ConversationDistiller.tryDistill(
+            scenarioName = title,
+            deliverable = deliverable,
+        ) ?: return
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                if (MemoryLayerRepository.isEnabled()) {
+                    MemoryLayerRepository.saveScenario(distilled.scenarioName, distilled.content)
+                }
+            }
+        }
+    }
+
 }

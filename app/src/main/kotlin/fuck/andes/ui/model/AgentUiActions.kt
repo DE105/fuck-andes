@@ -78,4 +78,20 @@ sealed interface AgentMemoryAction {
     data object Save : AgentMemoryAction
     data object Clear : AgentMemoryAction
     data object DismissNotice : AgentMemoryAction
+    // ── 本地四层记忆 ──
+    data class ToggleFourLayerEnabled(val enabled: Boolean) : AgentMemoryAction
+    data class ToggleDistillMdSync(val enabled: Boolean) : AgentMemoryAction
+    data class AtomInputChanged(val content: String) : AgentMemoryAction
+    data class AtomCategoryChanged(val category: String) : AgentMemoryAction
+    data object AddAtom : AgentMemoryAction
+    data class DeleteAtom(val id: String) : AgentMemoryAction
+    data class ScenarioNameChanged(val name: String) : AgentMemoryAction
+    data class ScenarioContentChanged(val content: String) : AgentMemoryAction
+    data object SaveScenario : AgentMemoryAction
+    data class DeleteScenario(val id: String) : AgentMemoryAction
+    data class ProfileKeyChanged(val key: String) : AgentMemoryAction
+    data class ProfileValueChanged(val value: String) : AgentMemoryAction
+    data object AddProfile : AgentMemoryAction
+    data class DeleteProfile(val key: String) : AgentMemoryAction
+    data object RefreshLayers : AgentMemoryAction
 }
