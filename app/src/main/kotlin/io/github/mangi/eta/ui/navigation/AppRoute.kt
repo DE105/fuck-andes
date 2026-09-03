@@ -63,7 +63,7 @@ sealed interface AppRoute : NavKey {
     data class ModelProviderDetail(val providerId: String) : AppRoute
 
     @Serializable
-    data class ModelProviderNew(val type: NewProviderType) : AppRoute
+    data class ModelProviderNew(val providerType: NewProviderType) : AppRoute
 }
 
 @Serializable

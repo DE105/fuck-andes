@@ -1,5 +1,6 @@
 package io.github.mangi.eta.ui.pages.providers
 
+import androidx.compose.runtime.saveable.SaverScope
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.CustomProviderSetting
 import io.github.mangi.eta.data.model.Model
@@ -10,6 +11,26 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ProviderComponentsTest {
+    @Test
+    fun providerDraftSaverPreservesUnsavedConfiguration() {
+        val draft = ProviderConfigDraft(
+            name = "临时提供商",
+            baseUrl = "https://api.example.com/v1",
+            apiKey = "temporary-key",
+            systemPrompt = "临时提示词",
+            isEnabled = false,
+            endpointMode = "responses",
+            hostedWebSearchEnabled = true,
+            anthropicVersion = "2023-06-01",
+        )
+
+        val saved = with(ProviderConfigDraftSaver) {
+            SaverScope { true }.save(draft)
+        }
+
+        assertEquals(draft, ProviderConfigDraftSaver.restore(requireNotNull(saved)))
+    }
+
     @Test
     fun validatesOptionalPositiveContextWindowOverride() {
         assertEquals(null, contextWindowInputError(""))
