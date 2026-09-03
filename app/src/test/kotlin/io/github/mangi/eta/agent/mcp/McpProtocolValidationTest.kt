@@ -100,6 +100,55 @@ class McpProtocolValidationTest {
     }
 
     @Test
+    fun autoModeFallsBackWhenModernToolListReturnsLegacyResultShape() {
+        val requestIndex = AtomicInteger()
+        val methods = CopyOnWriteArrayList<String>()
+        val versions = CopyOnWriteArrayList<String>()
+        val server = localServer { exchange ->
+            val body = JSONObject(exchange.requestBody.bufferedReader().use { it.readText() })
+            methods += body.getString("method")
+            versions += exchange.requestHeaders.getFirst("MCP-Protocol-Version")
+            when (requestIndex.getAndIncrement()) {
+                0 -> exchange.respond(
+                    200,
+                    """{"jsonrpc":"2.0","id":1,"result":{"tools":[{"name":"ignored-modern","inputSchema":{"type":"object"}}]}}""",
+                )
+                1 -> exchange.respond(
+                    200,
+                    """{"jsonrpc":"2.0","id":2,"result":{"protocolVersion":"2024-11-05","capabilities":{},"serverInfo":{"name":"test","version":"1"}}}""",
+                )
+                2 -> exchange.respond(202, "")
+                3 -> exchange.respond(
+                    200,
+                    """{"jsonrpc":"2.0","id":3,"result":{"tools":[{"name":"legacy","inputSchema":{"type":"object"}}]}}""",
+                )
+            }
+        }
+        try {
+            val configured = McpServerSetting(id = "test", name = "Test", url = server.url())
+            val discovery = McpHttpClient(configured, bearerToken = null).use { it.discoverTools() }
+
+            assertEquals("2024-11-05", discovery.protocolVersion)
+            assertEquals(listOf("legacy"), discovery.tools.map { it.name })
+            assertEquals(
+                listOf("tools/list", "initialize", "notifications/initialized", "tools/list"),
+                methods,
+            )
+            assertEquals(
+                listOf(
+                    McpProtocolMode.LATEST,
+                    McpProtocolMode.LEGACY,
+                    "2024-11-05",
+                    "2024-11-05",
+                ),
+                versions,
+            )
+        } finally {
+            server.stop(0)
+        }
+    }
+
+    @Test
     fun legacyHandshakeUsesOlderVersionSelectedByServer() {
         val requestIndex = AtomicInteger()
         val subsequentVersions = CopyOnWriteArrayList<String>()

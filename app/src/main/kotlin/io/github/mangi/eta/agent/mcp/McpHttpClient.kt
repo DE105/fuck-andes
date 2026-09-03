@@ -216,6 +216,13 @@ internal class McpHttpClient(
             ).json ?: error("MCP tools/list 返回为空")
             val result = unwrapResult(response)
             if (protocolVersion == McpProtocolMode.LATEST) {
+                // 旧服务可能忽略现代协议元数据并仍以 200 返回，
+                // 此时需要改走 initialize 协商。
+                if (!result.has("resultType") || result.isNull("resultType")) {
+                    throw McpProtocolCompatibilityException(
+                        IOException("MCP tools/list 返回了旧协议结果")
+                    )
+                }
                 require(result.optString("resultType") == "complete") {
                     "MCP tools/list 返回了不支持的结果类型"
                 }
@@ -509,7 +516,7 @@ internal class McpJsonRpcException(
     safeMessage: String,
 ) : IOException("MCP 协议错误：code=$code ${safeMessage.take(200)}")
 
-private class McpProtocolCompatibilityException(cause: Throwable) : IOException(cause)
+private class McpProtocolCompatibilityException(cause: Throwable) : IOException(cause.message, cause)
 
 internal fun validateMcpEndpoint(raw: String): okhttp3.HttpUrl {
     return raw.trim().toHttpUrlOrNull() ?: error("MCP 地址无效")
