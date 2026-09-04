@@ -1,0 +1,25 @@
+--- a/shmem.c
++++ b/shmem.c
+@@ -26 +25,0 @@
+-#define ASHV_KEY_SYMLINK_PATH _PATH_TMP "ashv_key_%d"
+@@ -352 +351,12 @@
+-		sprintf(symlink_path, ASHV_KEY_SYMLINK_PATH, key);
++		const char *temp_path = getenv("PROOT_TMP_DIR");
++		if (!temp_path || !temp_path[0]) {
++			pthread_mutex_unlock(&mutex);
++			errno = EINVAL;
++			return -1;
++		}
++		if (snprintf(symlink_path, sizeof(symlink_path), "%s/ashv_key_%d", temp_path, key)
++		    >= (int) sizeof(symlink_path)) {
++			pthread_mutex_unlock(&mutex);
++			errno = ENAMETOOLONG;
++			return -1;
++		}
+@@ -384,0 +395,6 @@
++			if (errno != EEXIST) {
++				int saved_errno = errno;
++				pthread_mutex_unlock(&mutex);
++				errno = saved_errno;
++				return -1;
++			}

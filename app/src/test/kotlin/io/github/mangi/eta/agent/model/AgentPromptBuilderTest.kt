@@ -31,6 +31,7 @@ class AgentPromptBuilderTest {
                 AgentModelClient.ConversationMessage(role = "assistant", content = "旧回答"),
             ),
             skillContext = SkillContext.EMPTY,
+            rootAvailable = true,
         )
 
         assertEquals(
@@ -38,7 +39,7 @@ class AgentPromptBuilderTest {
             messages.roles(),
         )
         assertEquals("自定义系统约束", messages.getJSONObject(0).getString("content"))
-        assertTrue(messages.systemContents().any { it.contains("system_server 有限重绑") })
+        assertTrue(messages.systemContents().any { it.contains("只有系统保护后端可用时才会请求有限重绑") })
         assertTrue(messages.systemContents().any { it.contains("不要改用坐标或 Shell 重放") })
         assertTrue(messages.systemContents().any { it.contains("通用 GUI 工具完成输入和点击发送") })
         assertTrue(messages.systemContents().any { it.contains("不追加二次确认") })

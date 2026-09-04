@@ -481,11 +481,10 @@ private fun ProviderConfigTab(
                                     if (added.isEnabled) {
                                         RuntimeConfigRepository.setSelectedProviderId(added.id)
                                     }
-                                    val ok = RuntimeConfigRepository.syncToRemotePreferences(
+                                    RuntimeConfigRepository.syncToRemotePreferences(
                                         EtaApp.serviceInstance
                                     )
-                                    status = if (ok) context.getString(R.string.page_created_set_current_and_synced_a99010)
-                                    else context.getString(R.string.page_created_and_set_as_current_lsposed_service_is_not_co_baa03d)
+                                    status = context.getString(R.string.capability_provider_created)
                                     creationCommitted = true
                                     onCreated(added.id)
                                 } else {
@@ -493,13 +492,12 @@ private fun ProviderConfigTab(
                                     if (built.isEnabled) {
                                         RuntimeConfigRepository.setSelectedProviderId(built.id)
                                     }
-                                    val ok = RuntimeConfigRepository.syncToRemotePreferences(
+                                    RuntimeConfigRepository.syncToRemotePreferences(
                                         EtaApp.serviceInstance
                                     )
                                     status = when {
                                         !built.isEnabled -> context.getString(R.string.page_saved_provider_not_enabled_7afa54)
-                                        ok -> context.getString(R.string.page_saved_current_and_synced_95dac1)
-                                        else -> context.getString(R.string.page_saved_and_set_as_current_lsposed_service_not_connect_08da2c)
+                                        else -> context.getString(R.string.capability_provider_saved)
                                     }
                                 }
                             } catch (cancelled: CancellationException) {

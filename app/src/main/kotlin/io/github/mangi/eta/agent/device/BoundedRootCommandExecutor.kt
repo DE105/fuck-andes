@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 internal class BoundedRootCommandExecutor(
     private val logger: AgentLogger,
+    private val rootAvailable: () -> Boolean = { RootAccess.isGranted },
 ) : AutoCloseable {
     private val activeProcesses = ConcurrentHashMap.newKeySet<Process>()
     private val closed = AtomicBoolean(false)
@@ -26,8 +27,10 @@ internal class BoundedRootCommandExecutor(
         maxOutputBytes: Int = DEFAULT_MAX_OUTPUT_BYTES,
     ): Result {
         if (closed.get()) return Result.failed("ROOT_EXECUTOR_CLOSED")
+        if (!rootAvailable()) return Result.failed("ROOT_REQUIRED")
+        val envelope = RootCommandEnvelope(command)
         val process = runCatching {
-            ProcessBuilder("su", "-c", command)
+            ProcessBuilder("su", "-c", envelope.script)
                 .redirectErrorStream(false)
                 .start()
         }.getOrElse {
@@ -44,7 +47,9 @@ internal class BoundedRootCommandExecutor(
                 process.inputStream.use { it.readBounded(maxOutputBytes) }
             }
             val stderrFuture = ioPool.submit<BoundedOutput> {
-                process.errorStream.use { it.readBounded(maxOutputBytes) }
+                process.errorStream.use {
+                    it.readBounded(maxOutputBytes.coerceIn(1, MAX_MAX_OUTPUT_BYTES) + envelope.markerBytes)
+                }
             }
             val completed = runCatching {
                 process.waitFor(timeoutMillis.coerceIn(500L, MAX_TIMEOUT_MS), TimeUnit.MILLISECONDS)
@@ -54,12 +59,18 @@ internal class BoundedRootCommandExecutor(
             }
             val stdout = runCatching { stdoutFuture.get(IO_JOIN_TIMEOUT_MS, TimeUnit.MILLISECONDS) }
                 .getOrDefault(BoundedOutput.EMPTY)
-            val stderr = runCatching { stderrFuture.get(IO_JOIN_TIMEOUT_MS, TimeUnit.MILLISECONDS) }
-                .getOrDefault(BoundedOutput.EMPTY)
+            val stderrRead = runCatching { stderrFuture.get(IO_JOIN_TIMEOUT_MS, TimeUnit.MILLISECONDS) }.getOrNull()
+            val stderr = stderrRead ?: BoundedOutput.EMPTY
+            val rootOutput = envelope.inspect(stderr.text)
+            if (stderrRead != null && rootOutput.denied(completed)) {
+                RootAccess.markDenied()
+                logger.warn("Agent root access outcome=denied code=ROOT_REQUIRED")
+                return Result.failed("ROOT_REQUIRED")
+            }
             Result(
                 exitCode = if (completed) runCatching { process.exitValue() }.getOrDefault(-1) else -2,
                 stdout = stdout.text,
-                stderr = stderr.text,
+                stderr = rootOutput.stderr,
                 timedOut = !completed,
                 truncated = stdout.truncated || stderr.truncated,
             )

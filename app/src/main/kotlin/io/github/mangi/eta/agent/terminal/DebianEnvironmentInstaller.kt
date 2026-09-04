@@ -51,7 +51,7 @@ internal sealed interface DebianInstallResult {
     data object RootUnavailable : DebianInstallResult
     data object BusyBoxUnavailable : DebianInstallResult
     data object EnvironmentUnavailable : DebianInstallResult
-    data class Failed(val stage: DebianInstallStage) : DebianInstallResult
+    data class Failed(val stage: DebianInstallStage, val code: String? = null, val message: String? = null) : DebianInstallResult
 }
 
 /** 下载固定版本的 Debian glibc rootfs；Android 内核、挂载和会话仍由 Eta 复用。 */
@@ -101,6 +101,9 @@ internal class DebianEnvironmentInstaller(
         if (baseRootfsReady(rootfs)) {
             return@withContext DebianInstallResult.AlreadyReady
         }
+        io.github.mangi.eta.data.repository.LinuxEnvironmentSettingsRepository.selectBackend(
+            LinuxDistribution.DEBIAN, LinuxEnvironmentPaths.backendOf(rootfs.absolutePath),
+        )
         val artifact = artifactForAbis(Build.SUPPORTED_ABIS.toList())
             ?: return@withContext DebianInstallResult.UnsupportedAbi(
                 Build.SUPPORTED_ABIS.firstOrNull().orEmpty().ifBlank { "unknown" },
@@ -121,6 +124,12 @@ internal class DebianEnvironmentInstaller(
             if (!installRootfs(artifact, archive, rootfs)) {
                 return@withContext DebianInstallResult.Failed(DebianInstallStage.EXTRACTING)
             }
+        } catch (failure: RootlessInstallFailure) {
+            return@withContext DebianInstallResult.Failed(DebianInstallStage.EXTRACTING, failure.code, failure.message)
+        } catch (_: java.io.IOException) {
+            return@withContext DebianInstallResult.Failed(DebianInstallStage.EXTRACTING, "INSTALL_IO_FAILED", "安装文件无法读写，请检查内部存储空间并重试")
+        } catch (_: IllegalArgumentException) {
+            return@withContext DebianInstallResult.Failed(DebianInstallStage.EXTRACTING, "INVALID_ARCHIVE", "环境归档无效或包含不安全路径，请重新下载后重试")
         } finally {
             archive.delete()
         }
@@ -155,6 +164,10 @@ internal class DebianEnvironmentInstaller(
     }
 
     private suspend fun runPreflight(): InstallerCommandResult {
+        if (LinuxEnvironmentPaths.backendOf(rootfsDir().absolutePath) == LinuxExecutionBackend.PROOT) {
+            return InstallerCommandResult(if (ProotCommandBuilder.available()) 0 else PREFLIGHT_ENVIRONMENT_UNAVAILABLE, "")
+        }
+        if (!TerminalRuntime.rootAvailable) return InstallerCommandResult(PREFLIGHT_ROOT_UNAVAILABLE, "")
         val requiredApplets = listOf(
             "ash", "chroot", "grep", "gzip", "mount", "sha256sum", "tar", "unshare", "xz",
         ).joinToString(" ")
@@ -172,6 +185,9 @@ internal class DebianEnvironmentInstaller(
     }
 
     private suspend fun installRootfs(artifact: VerifiedArtifact, archive: File, rootfs: File): Boolean {
+        if (LinuxEnvironmentPaths.backendOf(rootfs.absolutePath) == LinuxExecutionBackend.PROOT) {
+            return RootlessLinuxInstaller.installBase(artifact, archive, rootfs, LinuxDistribution.DEBIAN)
+        }
         val parent = rootfs.parentFile ?: return false
         val temporaryRootfs = File(parent, "rootfs.installing")
         val markerBody = "version=${artifact.version}\\ndistribution=debian\\nsha256=${artifact.sha256}\\n"

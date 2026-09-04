@@ -21,6 +21,7 @@ internal class AgentLoop(
     private val runController: AgentRunController,
     private val traceFormatter: AgentTraceFormatter,
     private val onEvent: (AgentEvent) -> Unit,
+    private val toolsForRound: (() -> JSONArray)? = null,
 ) {
     data class Result(
         val content: String,
@@ -33,7 +34,7 @@ internal class AgentLoop(
         val result: AgentModelClient.ToolResult,
     )
 
-    private val toolCallValidator = AgentToolCallValidator(tools)
+    private var toolCallValidator = AgentToolCallValidator(tools)
     private val accumulatedReasoning = StringBuilder()
     private val sensitiveToolCallIds = linkedSetOf<String>()
     private var pendingToolImageMessage: JSONObject? = null
@@ -50,13 +51,15 @@ internal class AgentLoop(
             appendPendingSteeringMessage()
             onEvent(AgentEvent.RoundStarted(round = round, messageCount = messages.length()))
 
+            val roundTools = toolsForRound?.invoke() ?: tools
+            toolCallValidator = AgentToolCallValidator(roundTools)
             val reasoningLengthBeforeRound = accumulatedReasoning.length
             val providerResponse = try {
                 provider.complete(
                     request = ProviderRequest(
                         config = config,
                         messages = messages,
-                        tools = tools,
+                        tools = roundTools,
                     ),
                     runController = runController,
                 ) { providerEvent ->

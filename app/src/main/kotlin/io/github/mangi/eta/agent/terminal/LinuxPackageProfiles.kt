@@ -99,7 +99,7 @@ internal object LinuxPackageProfiles {
     )
 
     /**
-     * Kimi Code 是纯 JavaScript 的 npm 包，运行在 Node profile 之上。
+     * Kimi Code 使用 npm 分发，运行在 Node profile 之上；可选原生扩展由 npm 按平台安装。
      * 始终安装最新正式版（升级重装即可）；--prefix /usr/local 让 kimi 进入 PATH 首位，
      * 与 Node 归档自身的 prefix 无关。国内镜像优先，官方 registry 兜底。
      */
@@ -209,7 +209,9 @@ internal class LinuxPackageProfileInstaller(
         }
 
         val activateCommand = buildString {
+            append("set -e\n")
             spec.setupScript?.let { script -> append(script).append('\n') }
+            if (profile == LinuxPackageProfiles.KIMI) append("kimi --version >/dev/null\nkimi web --help >/dev/null\n")
             append("cat > /").append(profile.markerName).append(" <<'ETA_PROFILE_EOF'\n")
             append("profile=").append(profile.revision).append('\n')
             append("ETA_PROFILE_EOF\n")

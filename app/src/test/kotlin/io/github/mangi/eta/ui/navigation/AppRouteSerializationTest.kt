@@ -24,6 +24,7 @@ class AppRouteSerializationTest {
             AppRoute.Memory,
             AppRoute.LinuxEnvironment,
             AppRoute.SharedFolders,
+            AppRoute.Workspace,
             AppRoute.LinuxFiles("alpine"),
             AppRoute.ModelProviders,
             AppRoute.McpServers,

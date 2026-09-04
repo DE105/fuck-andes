@@ -4,13 +4,23 @@ import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.provider.MediaStore
+import android.provider.OpenableColumns
 import io.github.mangi.eta.agent.model.AgentFileReference
 import io.github.mangi.eta.agent.model.AgentFileReferenceKind
 import io.github.mangi.eta.agent.model.hasUnsupportedControlCharacter
 import io.github.mangi.eta.core.AgentLogger
+import java.io.File
+import java.io.IOException
+import java.nio.file.AccessDeniedException
+import java.nio.file.Files
+import java.nio.file.NoSuchFileException
+import java.nio.file.attribute.BasicFileAttributes
+import java.util.UUID
 
 internal class AgentFileReferenceGateway(
     private val resolveDocumentPath: (Uri) -> String? = { null },
+    private val importDocument: ((Uri) -> Resolution)? = null,
+    private val rootAvailable: () -> Boolean = { RootAccess.isGranted },
     private val executeRootCommand: (String) -> BoundedRootCommandExecutor.Result,
 ) {
     constructor(logger: AgentLogger) : this(
@@ -28,10 +38,13 @@ internal class AgentFileReferenceGateway(
     constructor(
         context: Context,
         logger: AgentLogger,
+        rootAvailable: () -> Boolean = { RootAccess.isGranted },
     ) : this(
         resolveDocumentPath = { uri -> queryLocalDocumentPath(context.applicationContext, uri) },
+        importDocument = { uri -> importDocumentUri(context.applicationContext, uri) },
+        rootAvailable = rootAvailable,
         executeRootCommand = { command ->
-            BoundedRootCommandExecutor(logger).use { executor ->
+            BoundedRootCommandExecutor(logger, rootAvailable).use { executor ->
                 executor.execute(
                     command = command,
                     timeoutMillis = VALIDATION_TIMEOUT_MS,
@@ -51,11 +64,15 @@ internal class AgentFileReferenceGateway(
             } else {
                 DocumentsContract.getDocumentId(uri)
             }
-        }.getOrNull() ?: return Resolution.Failure(Error.UnsupportedDocumentProvider)
-        val mappedPath = mapPrimaryStorageDocument(uri.authority, documentId)
+        }.getOrNull()
+        val mappedPath = documentId?.let { mapPrimaryStorageDocument(uri.authority, it) }
             ?: resolveDocumentPath(uri)
-            ?: return Resolution.Failure(Error.UnsupportedDocumentProvider)
-        return resolveAbsolutePath(mappedPath, expectedKind)
+        val resolved = mappedPath?.let { resolveAbsolutePath(it, expectedKind) }
+        if (resolved is Resolution.Success) return resolved
+        if (expectedKind == AgentFileReferenceKind.File && uri.scheme == "content") {
+            importDocument?.let { return it(uri) }
+        }
+        return resolved ?: Resolution.Failure(Error.UnsupportedDocumentProvider)
     }
 
     fun resolveAbsolutePath(
@@ -70,11 +87,14 @@ internal class AgentFileReferenceGateway(
         ) {
             return Resolution.Failure(Error.InvalidPath)
         }
+        val localResult = resolveAsApp(path, expectedKind)
+        if (localResult is Resolution.Success || !rootAvailable()) return localResult
+        if (localResult is Resolution.Failure && localResult.error == Error.TypeMismatch) return localResult
         val result = executeRootCommand(validationCommand(path))
         if (!result.ok) {
             return Resolution.Failure(
                 when {
-                    result.errorCode == "ROOT_UNAVAILABLE" -> Error.RootUnavailable
+                    result.errorCode in setOf("ROOT_UNAVAILABLE", "ROOT_REQUIRED") -> Error.RootUnavailable
                     result.timedOut -> Error.ValidationTimedOut
                     result.exitCode == EXIT_ROOT_UNAVAILABLE -> Error.RootUnavailable
                     result.exitCode == EXIT_UNSUPPORTED_TYPE -> Error.UnsupportedFileType
@@ -109,6 +129,41 @@ internal class AgentFileReferenceGateway(
         )
     }
 
+    private fun resolveAsApp(path: String, expectedKind: AgentFileReferenceKind?): Resolution = try {
+        val file = File(path).canonicalFile
+        require(!file.path.hasUnsupportedControlCharacter())
+        val attributes = Files.readAttributes(file.toPath(), BasicFileAttributes::class.java)
+        val kind = when {
+            attributes.isRegularFile -> AgentFileReferenceKind.File
+            attributes.isDirectory -> AgentFileReferenceKind.Directory
+            else -> null
+        }
+        when {
+            kind == null -> Resolution.Failure(Error.UnsupportedFileType)
+            expectedKind != null && expectedKind != kind -> Resolution.Failure(Error.TypeMismatch)
+            !Files.isReadable(file.toPath()) ||
+                (kind == AgentFileReferenceKind.Directory && !Files.isExecutable(file.toPath())) ->
+                Resolution.Failure(Error.AccessDenied)
+            else -> Resolution.Success(
+                AgentFileReference(
+                    displayName = file.name.ifBlank { file.path },
+                    absolutePath = file.path,
+                    kind = kind,
+                ),
+            )
+        }
+    } catch (_: IllegalArgumentException) {
+        Resolution.Failure(Error.InvalidPath)
+    } catch (_: NoSuchFileException) {
+        Resolution.Failure(Error.PathNotFound)
+    } catch (_: AccessDeniedException) {
+        Resolution.Failure(Error.AccessDenied)
+    } catch (_: SecurityException) {
+        Resolution.Failure(Error.AccessDenied)
+    } catch (_: IOException) {
+        Resolution.Failure(Error.AccessDenied)
+    }
+
     internal enum class Error {
         UnsupportedDocumentProvider,
         InvalidPath,
@@ -116,6 +171,9 @@ internal class AgentFileReferenceGateway(
         UnsupportedFileType,
         TypeMismatch,
         RootUnavailable,
+        AccessDenied,
+        ImportFailed,
+        ImportTooLarge,
         ValidationTimedOut,
     }
 
@@ -129,6 +187,62 @@ internal class AgentFileReferenceGateway(
         const val SHARED_STORAGE_ROOT = "/storage/emulated/0"
 
         private const val MEDIA_DOCUMENTS_AUTHORITY = "com.android.providers.media.documents"
+        internal const val MAX_IMPORT_BYTES = 32L * 1024 * 1024
+
+        internal fun importDocumentUri(context: Context, uri: Uri): Resolution {
+            val importDirectory = File(context.filesDir, "terminal/workspace/imports/${UUID.randomUUID()}")
+            var completed = false
+            return try {
+                val name = documentDisplayName(context, uri)
+                val displayName = safeImportName(name)
+                if (!importDirectory.mkdirs()) return Resolution.Failure(Error.ImportFailed)
+                val importedFile = File(importDirectory, displayName)
+                val input = context.contentResolver.openInputStream(uri)
+                    ?: return Resolution.Failure(Error.ImportFailed)
+                input.use { source ->
+                    importedFile.outputStream().use { destination ->
+                        BoundedFileCopy.copy(source, destination, MAX_IMPORT_BYTES)
+                    }
+                }
+                completed = true
+                Resolution.Success(
+                    AgentFileReference(
+                        displayName = displayName,
+                        absolutePath = importedFile.absolutePath,
+                        kind = AgentFileReferenceKind.File,
+                    ),
+                )
+            } catch (_: BoundedFileCopy.TooLargeException) {
+                Resolution.Failure(Error.ImportTooLarge)
+            } catch (_: SecurityException) {
+                Resolution.Failure(Error.AccessDenied)
+            } catch (_: IOException) {
+                Resolution.Failure(Error.ImportFailed)
+            } catch (_: RuntimeException) {
+                Resolution.Failure(Error.ImportFailed)
+            } finally {
+                if (!completed) importDirectory.deleteRecursively()
+            }
+        }
+
+        private fun documentDisplayName(context: Context, uri: Uri): String? = try {
+            context.contentResolver.query(
+                uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null,
+            )?.use { cursor ->
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
+            }
+        } catch (_: RuntimeException) {
+            // 名称是可选元数据；实际读取授权仍由 openInputStream 校验。
+            null
+        }
+
+        internal fun safeImportName(name: String?): String = name.orEmpty()
+            .map { if (it == '/' || it == '\\' || it.isISOControl()) '_' else it }
+            .joinToString("")
+            .take(80)
+            .takeUnless { it.isBlank() || it == "." || it == ".." }
+            ?: "imported-file"
 
         fun mapPrimaryStorageDocument(authority: String?, documentId: String): String? {
             if (authority != EXTERNAL_STORAGE_DOCUMENTS_AUTHORITY) return null

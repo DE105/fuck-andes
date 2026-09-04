@@ -1,6 +1,4 @@
 package io.github.mangi.eta.ui.screens.tools
-import io.github.mangi.eta.R
-import androidx.compose.ui.res.stringResource
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -11,35 +9,51 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.composables.icons.lucide.R as LucideR
+import io.github.mangi.eta.R
+import io.github.mangi.eta.agent.tool.AgentToolCapabilities
+import io.github.mangi.eta.agent.tool.RootRequirement
+import io.github.mangi.eta.ui.app.rememberDeviceCapabilities
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.model.AgentToolsAction
 import io.github.mangi.eta.ui.model.AgentToolsUiState
 import io.github.mangi.eta.ui.model.ToolItemUi
+import io.github.mangi.eta.ui.model.actualToolName
+import io.github.mangi.eta.ui.model.projectToolGroups
+import io.github.mangi.eta.ui.model.toolCardAction
+import io.github.mangi.eta.ui.model.toolCardRequirement
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.TabRow
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
+import com.composables.icons.lucide.R as LucideR
 
 private object ToolsMetrics {
     val GridHorizontalPadding = 20.dp
@@ -58,12 +72,35 @@ fun AgentToolsScreen(
     onAction: (AgentToolsAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val capabilities = rememberDeviceCapabilities()
+    var showAll by rememberSaveable { mutableStateOf(false) }
+    val currentListState = rememberLazyListState()
+    val allListState = rememberLazyListState()
+    val groups = projectToolGroups(state.groups, showAll, capabilities.root.isGranted, capabilities.tools.colorOs)
     MiuixScaffoldPage(
         title = stringResource(R.string.ui_tool_ability_9f0f80),
         onBack = { onAction(AgentToolsAction.NavigateBack) },
         modifier = modifier,
+        listState = if (showAll) allListState else currentListState,
     ) {
-        state.groups.forEach { group ->
+        item(key = "capability-view") {
+            TabRow(
+                tabs = listOf(stringResource(R.string.capability_current_device), stringResource(R.string.capability_all)),
+                selectedTabIndex = if (showAll) 1 else 0,
+                onTabSelected = { showAll = it == 1 },
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+            )
+        }
+        item(key = "capability-discovery") {
+            Card(modifier = Modifier.padding(horizontal = 20.dp).padding(bottom = 8.dp)) {
+                ArrowPreference(
+                    title = stringResource(R.string.capability_enhancements),
+                    summary = stringResource(R.string.capability_enhancements_summary),
+                    onClick = { onAction(AgentToolsAction.OpenEnhancements) },
+                )
+            }
+        }
+        groups.forEach { group ->
             item(key = "${group.id}-title") {
                 SmallTitle(group.title)
             }
@@ -73,10 +110,10 @@ fun AgentToolsScreen(
             ) { row ->
                 ToolGridRow(
                     tools = row,
+                    rootGranted = capabilities.root.isGranted,
+                    capabilities = capabilities.tools,
                     onToolClick = { tool ->
-                        if (tool.id.startsWith("browser_")) {
-                            onAction(AgentToolsAction.OpenBrowser)
-                        }
+                        toolCardAction(tool.id, capabilities.tools)?.let(onAction)
                     },
                 )
             }
@@ -87,6 +124,8 @@ fun AgentToolsScreen(
 @Composable
 private fun ToolGridRow(
     tools: List<ToolItemUi>,
+    rootGranted: Boolean,
+    capabilities: AgentToolCapabilities,
     onToolClick: (ToolItemUi) -> Unit,
 ) {
     BoxWithConstraints(
@@ -101,7 +140,9 @@ private fun ToolGridRow(
                 tools.forEach { tool ->
                     ToolCard(
                         tool = tool,
-                        onClick = if (tool.id.startsWith("browser_")) {
+                        rootGranted = rootGranted,
+                        capabilities = capabilities,
+                        onClick = if (toolCardAction(tool.id, capabilities) != null) {
                             { onToolClick(tool) }
                         } else {
                             null
@@ -120,7 +161,9 @@ private fun ToolGridRow(
                 tools.forEach { tool ->
                     ToolCard(
                         tool = tool,
-                        onClick = if (tool.id.startsWith("browser_")) {
+                        rootGranted = rootGranted,
+                        capabilities = capabilities,
+                        onClick = if (toolCardAction(tool.id, capabilities) != null) {
                             { onToolClick(tool) }
                         } else {
                             null
@@ -141,6 +184,8 @@ private fun ToolGridRow(
 @Composable
 private fun ToolCard(
     tool: ToolItemUi,
+    rootGranted: Boolean,
+    capabilities: AgentToolCapabilities,
     onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
@@ -181,12 +226,30 @@ private fun ToolCard(
         )
         Spacer(modifier = Modifier.height(ToolsMetrics.TitleSummaryGap))
         Text(
-            text = tool.summary,
+            text = if (!rootGranted && tool.id == "terminal") {
+                stringResource(R.string.capability_terminal_ordinary_summary)
+            } else { tool.summary },
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             style = MiuixTheme.textStyles.footnote1,
             maxLines = 3,
             overflow = TextOverflow.Ellipsis,
         )
+        val requirement = toolCardRequirement(tool.id)
+        val requirementText = when {
+            !rootGranted && requirement.rootRequirement == RootRequirement.REQUIRED -> stringResource(R.string.capability_root_required)
+            !capabilities.accessibilityAvailable && requirement.accessibility -> stringResource(R.string.capability_accessibility_required)
+            capabilities.unavailableCode(actualToolName(tool.id)) == "NOTIFICATION_ACCESS_REQUIRED" -> stringResource(R.string.capability_notification_access_required)
+            capabilities.unavailableCode(actualToolName(tool.id)) == "APP_USAGE_ACCESS_REQUIRED" -> stringResource(R.string.capability_usage_access_required)
+            capabilities.unavailableCode(actualToolName(tool.id)) == "LOCATION_PERMISSION_REQUIRED" -> stringResource(R.string.capability_location_access_required)
+            requirement.colorOs -> stringResource(R.string.capability_coloros_required)
+            !rootGranted && requirement.rootRequirement == RootRequirement.PARTIAL -> stringResource(R.string.capability_root_partial)
+            else -> null
+        }
+        if (requirementText != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = requirementText, style = MiuixTheme.textStyles.footnote1,
+                color = MiuixTheme.colorScheme.onSurfaceVariantActions)
+        }
     }
 }
 

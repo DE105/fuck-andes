@@ -16,6 +16,8 @@ import io.github.mangi.eta.agent.skill.SkillContext
 import io.github.mangi.eta.agent.skill.SkillRuntime
 import io.github.mangi.eta.agent.skill.PublicGitHubSkillSource
 import io.github.mangi.eta.agent.tool.AgentLocalTools
+import io.github.mangi.eta.agent.tool.AgentToolRequirements
+import io.github.mangi.eta.agent.tool.AgentToolCapabilities
 import io.github.mangi.eta.agent.tool.PendingSkillConflictCapabilityParser
 import io.github.mangi.eta.agent.tool.ToolExecutionDecision
 import io.github.mangi.eta.agent.voice.EtaAssistantOverlayService
@@ -142,7 +144,7 @@ internal class AgentRuntimeRunExecutor(
                 },
                 beforeToolExecution = { toolName ->
                     val requiresAccessibility =
-                        AgentOverlayVisibilityPolicy.isForegroundOperationTool(toolName)
+                        AgentToolRequirements.requiresAccessibility(toolName)
                     if (
                         !requiresAccessibility &&
                         !AgentOverlayVisibilityPolicy.requiresEntrySurfaceDismissal(toolName)
@@ -186,6 +188,7 @@ internal class AgentRuntimeRunExecutor(
             timing.preparationFinished(skillContext.installedSkills.size)
             val completedResponse = AgentModelClient.complete(
                 config = request.config,
+                capabilitiesProvider = { AgentToolCapabilities.capture(appContext) },
                 prompt = request.prompt,
                 toolExecutor = routingExecutor,
                 images = request.images,

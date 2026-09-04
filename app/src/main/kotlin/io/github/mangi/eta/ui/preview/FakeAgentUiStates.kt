@@ -3,7 +3,6 @@ package io.github.mangi.eta.ui.preview
 import io.github.mangi.eta.ui.model.AgentChatHomeUiState
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
 import io.github.mangi.eta.ui.model.AgentChatUiState
-import io.github.mangi.eta.ui.model.AgentSystemEnhanceUiState
 import io.github.mangi.eta.ui.model.AgentToolsUiState
 import io.github.mangi.eta.ui.model.ConversationModeUi
 import io.github.mangi.eta.ui.model.ConversationPaneUiState
@@ -11,9 +10,6 @@ import io.github.mangi.eta.ui.model.ConversationSummaryUi
 import io.github.mangi.eta.ui.model.PermissionHealthItemUi
 import io.github.mangi.eta.ui.model.PermissionHealthUiState
 import io.github.mangi.eta.ui.model.PermissionStatusUi
-import io.github.mangi.eta.ui.model.SystemEnhanceItemUi
-import io.github.mangi.eta.ui.model.SystemEnhanceSectionUi
-import io.github.mangi.eta.ui.model.SystemEnhanceStatusUi
 import io.github.mangi.eta.ui.model.ThinkingMessageUi
 import io.github.mangi.eta.ui.model.TokenUsageUi
 import io.github.mangi.eta.ui.model.ToolActivityMessageUi
@@ -188,8 +184,8 @@ internal object FakeAgentUiStates {
                 id = "screen",
                 title = "屏幕操作",
                 tools = listOf(
-                    ToolItemUi("observe", "观察屏幕", "读取界面节点，必要时附原图"),
-                    ToolItemUi("click", "点击", "点击指定坐标或元素"),
+                    ToolItemUi("observe_screen", "观察屏幕", "读取界面节点，必要时附原图"),
+                    ToolItemUi("tap_element", "点击", "点击指定坐标或元素"),
                     ToolItemUi("long_press", "长按", "长按指定元素"),
                     ToolItemUi("swipe", "滑动", "滑动、滚动、返回等手势"),
                 ),
@@ -199,8 +195,8 @@ internal object FakeAgentUiStates {
                 title = "输入与按键",
                 tools = listOf(
                     ToolItemUi("input_text", "输入文字", "在焦点处输入文本"),
-                    ToolItemUi("clipboard", "剪贴板", "读取或写入剪贴板"),
-                    ToolItemUi("wait_text", "等待文本", "等待界面出现指定文字"),
+                    ToolItemUi("paste_text", "粘贴文本", "使用剪贴板写入文本"),
+                    ToolItemUi("wait_for_text", "等待文本", "等待界面出现指定文字"),
                 ),
             ),
             ToolGroupUi(
@@ -218,7 +214,7 @@ internal object FakeAgentUiStates {
                 title = "App 与 URI",
                 tools = listOf(
                     ToolItemUi("get_current_context", "时间与位置", "读取系统时间与最近位置"),
-                    ToolItemUi("open_app", "打开 App", "通过包名启动应用"),
+                    ToolItemUi("launch_app", "打开 App", "通过包名启动应用"),
                     ToolItemUi("open_uri", "用应用打开", "显式交给外部应用处理"),
                 ),
             ),
@@ -227,54 +223,6 @@ internal object FakeAgentUiStates {
                 title = "终端与文件",
                 tools = listOf(
                     ToolItemUi("terminal", "终端命令", "Android/Alpine/Debian 环境执行 shell"),
-                    ToolItemUi("terminal_job", "后台任务", "异步 job 与读取输出"),
-                ),
-            ),
-        ),
-    )
-
-    val systemEnhance = AgentSystemEnhanceUiState(
-        sections = listOf(
-            SystemEnhanceSectionUi(
-                id = "status",
-                title = "状态",
-                items = listOf(
-                    SystemEnhanceItemUi(
-                        id = "hook",
-                        title = "Hook 状态",
-                        summary = "框架未激活",
-                        status = SystemEnhanceStatusUi.Inactive,
-                    ),
-                    SystemEnhanceItemUi(
-                        id = "root",
-                        title = "Root 状态",
-                        summary = "未获得 root 权限",
-                        status = SystemEnhanceStatusUi.Inactive,
-                    ),
-                    SystemEnhanceItemUi(
-                        id = "shizuku",
-                        title = "Shizuku 状态",
-                        summary = "未配对",
-                        status = SystemEnhanceStatusUi.Unsupported,
-                    ),
-                ),
-            ),
-            SystemEnhanceSectionUi(
-                id = "capabilities",
-                title = "可增强的能力",
-                items = listOf(
-                    SystemEnhanceItemUi(
-                        id = "power_key",
-                        title = "长按电源键唤起",
-                        summary = "需要 Hook 框架支持",
-                        status = SystemEnhanceStatusUi.Inactive,
-                    ),
-                    SystemEnhanceItemUi(
-                        id = "assistant_replace",
-                        title = "替换默认助理",
-                        summary = "需要 Root 或 Hook 支持",
-                        status = SystemEnhanceStatusUi.Inactive,
-                    ),
                 ),
             ),
         ),

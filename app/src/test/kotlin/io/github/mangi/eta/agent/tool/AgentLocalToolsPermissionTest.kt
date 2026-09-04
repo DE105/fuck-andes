@@ -20,6 +20,25 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class AgentLocalToolsPermissionTest {
     @Test
+    fun revokedRootRejectsOldPrivilegedCallsBeforeAnyOperation() {
+        val root = AtomicBoolean(true)
+        val tools = tools(
+            rootAvailable = root::get,
+            beforeToolExecution = { error("缺少 Root 的旧调用不应进入执行阶段") },
+        )
+        root.set(false)
+        listOf(
+            "set_setting" to "{}",
+            "terminal" to "{\"action\":\"open\",\"identity\":\"root\"}",
+            "press_key" to "{\"button\":\"PASTE\"}",
+        ).forEach { (name, args) ->
+            val result = tools.execute(AgentModelClient.ToolCall("old-$name", name, args))
+            assertEquals("ROOT_REQUIRED", JSONObject(result.content).getString("code"))
+        }
+        tools.close()
+    }
+
+    @Test
     fun terminalPermissionIsRecheckedImmediatelyBeforeExecution() {
         val enabled = AtomicBoolean(true)
         val tools = tools(terminalEnabled = enabled::get)
@@ -226,6 +245,7 @@ class AgentLocalToolsPermissionTest {
         terminalEnabled: () -> Boolean = { false },
         browserEnabled: () -> Boolean = { false },
         memoryEnabled: () -> Boolean = { false },
+        rootAvailable: () -> Boolean = { false },
         screenObservationProvider: (
             (AgentScreenObservationContract.Options) -> RootShellDeviceController.Observation
         )? = null,
@@ -240,6 +260,7 @@ class AgentLocalToolsPermissionTest {
             terminalToolsEnabled = terminalEnabled,
             browserToolsEnabled = browserEnabled,
             memoryToolsEnabled = memoryEnabled,
+            rootAvailable = rootAvailable,
             screenObservationProvider = screenObservationProvider,
             beforeToolExecution = beforeToolExecution,
         )

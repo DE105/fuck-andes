@@ -135,7 +135,7 @@ internal fun UserTerminalScreen(
         ) {
             when {
                 showLinuxGuide -> LinuxGuide(onOpenEnvironment = onOpenEnvironment)
-                state.blocks.isEmpty() -> EmptyHint()
+                state.blocks.isEmpty() -> EmptyHint(state.failMessage)
                 else -> BlockList(
                     blocks = state.blocks,
                     onReinput = { input = it },
@@ -548,7 +548,7 @@ private fun LinuxGuide(onOpenEnvironment: () -> Unit) {
 }
 
 @Composable
-private fun EmptyHint() {
+private fun EmptyHint(message: String? = null) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -556,7 +556,7 @@ private fun EmptyHint() {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = stringResource(R.string.terminal_empty_hint),
+            text = message ?: stringResource(R.string.terminal_empty_hint),
             style = MiuixTheme.textStyles.footnote1,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             textAlign = TextAlign.Center,

@@ -16,7 +16,18 @@ class AgentNotificationHistoryService : NotificationListenerService() {
 
     override fun onListenerConnected() {
         super.onListenerConnected()
+        connectedService = this
         activeNotifications?.forEach(::record)
+    }
+
+    override fun onListenerDisconnected() {
+        if (connectedService === this) connectedService = null
+        super.onListenerDisconnected()
+    }
+
+    override fun onDestroy() {
+        if (connectedService === this) connectedService = null
+        super.onDestroy()
     }
 
     private fun record(sbn: StatusBarNotification) {
@@ -32,6 +43,18 @@ class AgentNotificationHistoryService : NotificationListenerService() {
     }
 
     companion object {
+        @Volatile
+        private var connectedService: AgentNotificationHistoryService? = null
+
+        internal fun currentNotifications(): Array<StatusBarNotification>? {
+            val service = connectedService ?: return null
+            return try {
+                service.activeNotifications
+            } catch (_: RuntimeException) {
+                null
+            }
+        }
+
         fun isEnabled(context: Context): Boolean {
             val manager = context.getSystemService(android.app.NotificationManager::class.java)
                 ?: return false

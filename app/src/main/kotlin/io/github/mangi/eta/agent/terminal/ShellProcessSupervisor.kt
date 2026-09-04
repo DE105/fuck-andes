@@ -9,6 +9,8 @@ import kotlin.concurrent.thread
 internal class ShellProcessSupervisor(
     private val allowTreeFallback: Boolean = !isAndroidRuntime(),
     private val setsidCommand: String = "setsid",
+    private val rootAvailable: () -> Boolean = { TerminalRuntime.rootAvailable },
+    private val userPtyExecutable: () -> File? = { TerminalRuntime.nativeExecutable("libeta_pty.so") },
 ) {
     private companion object {
         const val PROCESS_REAP_TIMEOUT_MS = 1_000L
@@ -47,30 +49,43 @@ internal class ShellProcessSupervisor(
     ): Process? {
         if (isClosing) return null
         require(identity == "root" || identity == "user") { "identity 仅支持 root/user" }
-        require(!environment.isLinux || identity == "root") {
+        require(!environment.isLinux || identity == "root" || LinuxEnvironmentPaths.backendOf(linuxRootfsPath) == LinuxExecutionBackend.PROOT) {
             "Linux 工具环境仅支持 root identity"
         }
+        if (environment.isLinux && identity == "root" && LinuxEnvironmentPaths.backendOf(linuxRootfsPath) == LinuxExecutionBackend.PROOT) return null
+        if (identity == "root" && !rootAvailable()) return null
         val ownershipFile = runCatching {
             File.createTempFile("eta-terminal-", ".owner")
         }.getOrNull() ?: return null
         val ownershipToken = UUID.randomUUID().toString().replace("-", "")
-        val launcher = buildTrackedShellLauncher(
-            ownershipFile = ownershipFile,
-            ownershipToken = ownershipToken,
-            command = command,
-            identity = identity,
-            environment = environment,
-            linuxRootfsPath = linuxRootfsPath,
-            linuxSharedMounts = linuxSharedMounts,
-            pty = pty,
-            ptyCols = ptyCols,
-            ptyRows = ptyRows,
-        )
+        val launcher = try {
+            buildTrackedShellLauncher(
+                ownershipFile = ownershipFile,
+                ownershipToken = ownershipToken,
+                command = command,
+                identity = identity,
+                environment = environment,
+                linuxRootfsPath = linuxRootfsPath,
+                linuxSharedMounts = linuxSharedMounts,
+                pty = pty,
+                ptyCols = ptyCols,
+                ptyRows = ptyRows,
+            )
+        } catch (_: IllegalArgumentException) {
+            ownershipFile.delete()
+            return null
+        } catch (_: java.io.IOException) {
+            ownershipFile.delete()
+            return null
+        }
         val process = runCatching {
             val builder = if (identity == "root") {
                 ProcessBuilder("su", "-c", launcher)
             } else {
                 ProcessBuilder("sh", "-c", launcher)
+            }
+            if (identity == "user" && environment == TerminalEnvironment.ANDROID) {
+                builder.environment()["HOME"] = TerminalRuntime.userWorkspacePath
             }
             builder.redirectErrorStream(mergeStderr).start()
         }.getOrElse {
@@ -210,6 +225,12 @@ internal class ShellProcessSupervisor(
         }
         val safeSetsid = shellQuote(setsidCommand)
         if (pty) {
+            if (identity == "user") {
+                userPtyExecutable()?.let { executable ->
+                    val script = "printf '%s group\\n' \"${'$'}${'$'}\" > $path; export TERM=$PTY_TERM_TYPE; $payload"
+                    return "$exportOwner; exec ${shellQuote(executable.absolutePath)} $ptyRows $ptyCols -- sh -c ${shellQuote(script)}"
+                }
+            }
             return buildPtyLauncher(
                 exportOwner = exportOwner,
                 path = path,
@@ -270,6 +291,9 @@ internal class ShellProcessSupervisor(
         sharedMounts: List<SharedFolderMount> = emptyList(),
         termType: String = "dumb",
     ): String {
+        if (LinuxEnvironmentPaths.backendOf(rootfsPath) == LinuxExecutionBackend.PROOT) {
+            return ProotCommandBuilder.payload(rootfsPath, command, sharedMounts, termType)
+        }
         val rootfs = shellQuote(rootfsPath)
         val mode = if (command == null) "session" else "command"
         val payload = shellQuote(command.orEmpty())

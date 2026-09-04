@@ -1,4 +1,5 @@
 [versions]
+ndk = "29.0.14206865"
 agp = "9.3.2"
 kotlin = "2.4.10"
 ksp = "2.3.9"
@@ -20,8 +21,12 @@ room = "2.8.4"
 junit = "4.13.2"
 json = "20260522"
 robolectric = "4.16.1"
+commonsCompress = "1.28.0"
+xz = "1.12"
 
 [libraries]
+commons-compress = { group = "org.apache.commons", name = "commons-compress", version.ref = "commonsCompress" }
+xz = { group = "org.tukaani", name = "xz", version.ref = "xz" }
 libxposed-api = { group = "io.github.libxposed", name = "api", version.ref = "libxposedApi" }
 libxposed-service = { group = "io.github.libxposed", name = "service", version.ref = "libxposedService" }
 miuix-ui = { group = "top.yukonga.miuix.kmp", name = "miuix-ui-android", version.ref = "miuix" }

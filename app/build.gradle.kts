@@ -25,6 +25,7 @@ java {
 android {
     namespace = "io.github.mangi.eta"
     compileSdk = 37
+    ndkVersion = libs.versions.ndk.get()
 
     defaultConfig {
         applicationId = "io.github.mangi.eta"
@@ -77,6 +78,10 @@ android {
     }
 
     packaging {
+        jniLibs {
+            useLegacyPackaging = true
+            keepDebugSymbols += setOf("**/libproot_exec.so", "**/libproot_loader.so", "**/libeta_pty.so")
+        }
         resources {
             // 合并 Xposed 模块声明，避免 release 裁剪后模块入口失效
             merges += "META-INF/xposed/*"
@@ -98,6 +103,8 @@ android {
 }
 
 dependencies {
+    implementation(libs.commons.compress)
+    implementation(libs.xz)
     compileOnly(libs.libxposed.api)
     // UI 侧 RemotePreferences 写入桥：通过 XposedService 将配置提交到 LSPosed 数据库；
     // Hook 侧用 XposedInterface.getRemotePreferences 读取当前进程持有的配置缓存。

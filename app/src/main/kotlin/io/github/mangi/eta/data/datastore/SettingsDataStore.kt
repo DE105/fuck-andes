@@ -113,6 +113,21 @@ internal object SettingsDataStore {
             .map { preferences -> preferences[LINUX_DISTRIBUTION] }
     }
 
+    fun linuxBackendFlow(distribution: String): Flow<String?> {
+        ensureInitialized()
+        return dataStore.data.catch { cause ->
+            if (cause is IOException) emit(emptyPreferences()) else throw cause
+        }.map { it[stringPreferencesKey("linux_backend.$distribution")] }
+    }
+
+    suspend fun setLinuxBackend(distribution: String, backend: String?) {
+        ensureInitialized()
+        dataStore.edit { preferences ->
+            val key = stringPreferencesKey("linux_backend.$distribution")
+            if (backend == null) preferences.remove(key) else preferences[key] = backend
+        }
+    }
+
     fun appearanceSettingsFlow(): Flow<AppearanceSettings> =
         settingsFlow().map { it.appearance }
 

@@ -3,16 +3,67 @@ package io.github.mangi.eta.agent.device
 import android.net.Uri
 import io.github.mangi.eta.agent.model.AgentFileReference
 import io.github.mangi.eta.agent.model.AgentFileReferenceKind
+import io.github.mangi.eta.core.AgentLogger
+import java.io.ByteArrayInputStream
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.Rule
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.Shadows.shadowOf
 
 @RunWith(RobolectricTestRunner::class)
 class AgentFileReferenceGatewayTest {
+    @get:Rule
+    val temporaryFolder = TemporaryFolder()
+
+    @Test
+    fun appReadableFilesAndDirectoriesNeverAskForRoot() {
+        val file = temporaryFolder.newFile("report.txt").apply { writeText("ordinary file") }
+        val gateway = AgentFileReferenceGateway(rootAvailable = { false }) {
+            error("普通路径不应执行 Root 校验")
+        }
+        val result = gateway.resolveAbsolutePath(file.absolutePath, AgentFileReferenceKind.File)
+            as AgentFileReferenceGateway.Resolution.Success
+        assertEquals(file.canonicalPath, result.reference.absolutePath)
+        assertFailure(
+            AgentFileReferenceGateway.Error.TypeMismatch,
+            gateway.resolveAbsolutePath(file.absolutePath, AgentFileReferenceKind.Directory),
+        )
+        assertTrue(gateway.resolveAbsolutePath(temporaryFolder.root.path) is AgentFileReferenceGateway.Resolution.Success)
+        assertFailure(
+            AgentFileReferenceGateway.Error.PathNotFound,
+            gateway.resolveAbsolutePath(File(temporaryFolder.root, "missing").path),
+        )
+    }
+
+    @Test
+    fun documentWithNoFilesystemPathIsImportedIntoPersistentWorkspace() {
+        val context = RuntimeEnvironment.getApplication()
+        val uri = Uri.parse("content://cloud.example/document/report")
+        shadowOf(context.contentResolver).registerInputStream(uri, ByteArrayInputStream("授权内容".toByteArray()))
+        val gateway = AgentFileReferenceGateway(context, NoOpLogger, rootAvailable = { false })
+
+        val result = gateway.resolveDocumentUri(uri, AgentFileReferenceKind.File)
+            as AgentFileReferenceGateway.Resolution.Success
+        val imported = File(result.reference.absolutePath)
+        assertTrue(imported.path.startsWith(File(context.filesDir, "terminal/workspace/imports").path + "/"))
+        assertEquals("授权内容", imported.readText())
+        imported.parentFile?.deleteRecursively()
+    }
+
+    @Test
+    fun importNamesCannotEscapeTheirPrivateDirectory() {
+        assertEquals(".._.._secret_name", AgentFileReferenceGateway.safeImportName("../../secret\nname"))
+        assertEquals("imported-file", AgentFileReferenceGateway.safeImportName(".."))
+    }
+
     @Test
     fun mapPrimaryStorageDocument_acceptsPrimaryVolumeOnly() {
         assertEquals(
@@ -61,10 +112,10 @@ class AgentFileReferenceGatewayTest {
 
     @Test
     fun resolveAbsolutePath_returnsCanonicalFileAndDirectory() {
-        val fileGateway = AgentFileReferenceGateway {
+        val fileGateway = AgentFileReferenceGateway(rootAvailable = { true }) {
             success("file\n/storage/emulated/0/Download/report.txt")
         }
-        val directoryGateway = AgentFileReferenceGateway {
+        val directoryGateway = AgentFileReferenceGateway(rootAvailable = { true }) {
             success("directory\n/data/local/tmp/project")
         }
 
@@ -97,28 +148,28 @@ class AgentFileReferenceGatewayTest {
     fun resolveAbsolutePath_mapsRootAndFilesystemFailures() {
         assertFailure(
             expected = AgentFileReferenceGateway.Error.RootUnavailable,
-            result = AgentFileReferenceGateway {
+            result = AgentFileReferenceGateway(rootAvailable = { true }) {
                 BoundedRootCommandExecutor.Result.failed("ROOT_UNAVAILABLE")
             }.resolveAbsolutePath("/data/local/tmp/file"),
         )
         assertFailure(
             expected = AgentFileReferenceGateway.Error.RootUnavailable,
-            result = AgentFileReferenceGateway { failed(exitCode = 20) }
+            result = AgentFileReferenceGateway(rootAvailable = { true }) { failed(exitCode = 20) }
                 .resolveAbsolutePath("/data/local/tmp/file"),
         )
         assertFailure(
             expected = AgentFileReferenceGateway.Error.UnsupportedFileType,
-            result = AgentFileReferenceGateway { failed(exitCode = 23) }
+            result = AgentFileReferenceGateway(rootAvailable = { true }) { failed(exitCode = 23) }
                 .resolveAbsolutePath("/data/local/tmp/socket"),
         )
         assertFailure(
             expected = AgentFileReferenceGateway.Error.PathNotFound,
-            result = AgentFileReferenceGateway { failed(exitCode = 21) }
+            result = AgentFileReferenceGateway(rootAvailable = { true }) { failed(exitCode = 21) }
                 .resolveAbsolutePath("/data/local/tmp/missing"),
         )
         assertFailure(
             expected = AgentFileReferenceGateway.Error.ValidationTimedOut,
-            result = AgentFileReferenceGateway {
+            result = AgentFileReferenceGateway(rootAvailable = { true }) {
                 failed(exitCode = -2, timedOut = true)
             }.resolveAbsolutePath("/data/local/tmp/file"),
         )
@@ -130,7 +181,7 @@ class AgentFileReferenceGatewayTest {
                     kind = AgentFileReferenceKind.File,
                 )
             ),
-            AgentFileReferenceGateway {
+            AgentFileReferenceGateway(rootAvailable = { true }) {
                 success("file\n/data/adb/secret")
             }.resolveAbsolutePath("/data/adb/secret"),
         )
@@ -139,7 +190,7 @@ class AgentFileReferenceGatewayTest {
     @Test
     fun resolveAbsolutePath_rejectsInvalidInputAndTypeMismatch() {
         var executed = false
-        val invalidGateway = AgentFileReferenceGateway {
+        val invalidGateway = AgentFileReferenceGateway(rootAvailable = { true }) {
             executed = true
             success("file\n/data/local/tmp/file")
         }
@@ -155,7 +206,7 @@ class AgentFileReferenceGatewayTest {
 
         assertFailure(
             expected = AgentFileReferenceGateway.Error.TypeMismatch,
-            result = AgentFileReferenceGateway {
+            result = AgentFileReferenceGateway(rootAvailable = { true }) {
                 success("directory\n/data/local/tmp/project")
             }.resolveAbsolutePath("/data/local/tmp/project", AgentFileReferenceKind.File),
         )
@@ -165,7 +216,7 @@ class AgentFileReferenceGatewayTest {
     fun resolveAbsolutePath_shellQuotesUntrustedPath() {
         var command = ""
         val path = "/data/local/tmp/a'\$(touch pwned)"
-        val gateway = AgentFileReferenceGateway { captured ->
+        val gateway = AgentFileReferenceGateway(rootAvailable = { true }) { captured ->
             command = captured
             success("file\n$path")
         }
@@ -182,6 +233,7 @@ class AgentFileReferenceGatewayTest {
             "content://com.android.providers.media.documents/document/image%3A24708"
         )
         val gateway = AgentFileReferenceGateway(
+            rootAvailable = { true },
             resolveDocumentPath = { selectedUri ->
                 assertEquals(uri, selectedUri)
                 "/storage/emulated/0/Pictures/Screenshots/example.jpg"
@@ -206,6 +258,7 @@ class AgentFileReferenceGatewayTest {
     @Test
     fun resolveDocumentUri_rejectsProviderWithoutLocalPath() {
         val gateway = AgentFileReferenceGateway(
+            rootAvailable = { true },
             resolveDocumentPath = { null },
             executeRootCommand = { error("不应执行 Root 校验") },
         )
@@ -244,4 +297,11 @@ class AgentFileReferenceGatewayTest {
         timedOut = timedOut,
         truncated = false,
     )
+
+    private object NoOpLogger : AgentLogger {
+        override fun debug(message: () -> String) = Unit
+        override fun info(message: String) = Unit
+        override fun warn(message: String) = Unit
+        override fun error(message: String, throwable: Throwable?) = Unit
+    }
 }

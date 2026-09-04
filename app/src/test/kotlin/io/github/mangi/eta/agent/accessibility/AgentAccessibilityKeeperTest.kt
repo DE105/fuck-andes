@@ -7,6 +7,20 @@ import org.junit.Test
 
 class AgentAccessibilityKeeperTest {
     @Test
+    fun `stale protection setting without framework does not request recovery`() {
+        val result = AgentAccessibilityKeeper.ensureAvailable(
+            serviceAvailable = { false },
+            protectionEnabled = { true },
+            requestRecovery = { error("不应请求未连接的保护后端") },
+            awaitServiceBinding = { error("不应等待未发起的恢复") },
+            protectionAvailable = { false },
+        )
+
+        assertEquals("ACCESSIBILITY_UNAVAILABLE", result.code)
+        assertFalse(result.recoveryRequested)
+    }
+
+    @Test
     fun `connected service skips protection recovery`() {
         var recoveryCalls = 0
 

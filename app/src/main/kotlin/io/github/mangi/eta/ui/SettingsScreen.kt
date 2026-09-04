@@ -1,6 +1,4 @@
 package io.github.mangi.eta.ui
-import io.github.mangi.eta.R
-import androidx.compose.ui.res.stringResource
 
 import android.content.ComponentName
 import android.content.Context
@@ -15,23 +13,24 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.res.painterResource
-import com.composables.icons.lucide.R as LucideR
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.github.mangi.eta.EtaApp
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.accessibility.AccessibilityProtectionClient
 import io.github.mangi.eta.agent.accessibility.AgentAccessibilityService
 import io.github.mangi.eta.agent.voice.EtaVoiceInteractionService
@@ -40,11 +39,13 @@ import io.github.mangi.eta.config.Prefs
 import io.github.mangi.eta.data.repository.ProviderRepository
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
 import io.github.mangi.eta.systemizer.GoogleAppSystemizerInstaller
+import io.github.mangi.eta.systemizer.RootManager
+import io.github.mangi.eta.systemizer.SystemizerInstallResult
+import io.github.mangi.eta.ui.app.EnhancementSettingsHistory
+import io.github.mangi.eta.ui.app.rememberDeviceCapabilities
 import io.github.mangi.eta.ui.components.MiuixDialogActions
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.navigation.AppRoute
-import io.github.mangi.eta.systemizer.RootManager
-import io.github.mangi.eta.systemizer.SystemizerInstallResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -60,6 +61,7 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
+import com.composables.icons.lucide.R as LucideR
 
 // ── ColorOS / COUI 主色（ColorOS 16.1 Settings.apk: coui_color_*） ────────────────
 // 约定：设置页圆形图标/按钮底色只使用 ColorOS 设置主色。
@@ -87,6 +89,10 @@ internal fun SettingsScreen(
     onBack: () -> Unit,
 ) {
     val coroutineScope = rememberCoroutineScope()
+    val capabilities = rememberDeviceCapabilities()
+    val enhancementHistory = remember(context.applicationContext) { EnhancementSettingsHistory(context) }
+    var hasConnectedFramework by remember { mutableStateOf(enhancementHistory.hasConnected) }
+    var hasUsedSystemizer by remember { mutableStateOf(enhancementHistory.hasUsedSystemizer) }
     var showSystemizerDialog by remember { mutableStateOf(false) }
     var installingSystemizer by remember { mutableStateOf(false) }
 
@@ -146,7 +152,7 @@ internal fun SettingsScreen(
     var prefs by remember { mutableStateOf(Prefs.remotePreferencesForUi(EtaApp.serviceInstance)) }
     val agentPrefs = remember { Prefs.localAgentPreferences() }
     var powerAssistantTarget by remember(prefs) {
-        mutableStateOf(Prefs.powerAssistantTarget(prefs))
+        mutableStateOf(prefs?.let(Prefs::powerAssistantTarget) ?: enhancementHistory.powerTarget())
     }
     DisposableEffect(prefs) {
         val targetPrefs = prefs ?: return@DisposableEffect onDispose {}
@@ -164,6 +170,10 @@ internal fun SettingsScreen(
         val listener = object : EtaApp.ServiceStateListener {
             override fun onServiceStateChanged(service: io.github.libxposed.service.XposedService?) {
                 prefs = Prefs.remotePreferencesForUi(service)
+                prefs?.let { connected ->
+                    enhancementHistory.captureConnected(connected)
+                    hasConnectedFramework = true
+                }
                 Prefs.reconcileAgentPreferences(service)
                 coroutineScope.launch {
                     RuntimeConfigRepository.ensureDefaults(service)
@@ -182,18 +192,17 @@ internal fun SettingsScreen(
         title = stringResource(R.string.ui_set_up_7debf9),
         onBack = onBack,
     ) {
-            // ── LSPosed 未连接提示 ──────────────────────────────────────
-            if (prefs == null) {
-                item(key = "service_warning") {
+            if (hasConnectedFramework && prefs == null) {
+                item(key = "framework-reconnect") {
                     Card(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-                        BasicComponent(
-                            title = stringResource(R.string.ui_lsposed_service_is_not_connected_44734d),
-                            summary = stringResource(R.string.ui_agent_and_local_tools_can_still_be_used_but_the_syst_b14479),
+                        ArrowPreference(
+                            title = stringResource(R.string.capability_framework_reconnect),
+                            summary = stringResource(R.string.capability_framework_snapshot),
+                            onClick = { onNavigate(AppRoute.SystemEnhance) },
                         )
                     }
                 }
             }
-
             // ── LLM 提供商 ──────────────────────────────────────────────
             item(key = "section_agent") {
                 SmallTitle(stringResource(R.string.settings_llm_providers))
@@ -319,6 +328,22 @@ internal fun SettingsScreen(
                         },
                         onClick = { onNavigate(AppRoute.LinuxEnvironment) },
                     )
+                    PrefDivider()
+                    ArrowPreference(
+                        title = stringResource(R.string.capability_workspace),
+                        summary = stringResource(R.string.capability_workspace_summary),
+                        onClick = { onNavigate(AppRoute.Workspace) },
+                    )
+                }
+            }
+
+            item(key = "system_enhancements") {
+                Card(modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp)) {
+                    ArrowPreference(
+                        title = stringResource(R.string.capability_enhancements),
+                        summary = stringResource(R.string.capability_enhancements_summary),
+                        onClick = { onNavigate(AppRoute.SystemEnhance) },
+                    )
                 }
             }
 
@@ -343,148 +368,164 @@ internal fun SettingsScreen(
                         },
                         onClick = openAssistantSettings,
                     )
-                    PrefDivider()
-                    WindowSpinnerPreference(
-                        title = stringResource(R.string.ui_long_press_the_power_button_1958d0),
-                        summary = powerAssistantTarget.displayName(context),
-                        items = powerAssistantItems,
-                        selectedIndex = powerAssistantTargets.indexOf(powerAssistantTarget),
-                        onSelectedIndexChange = { index ->
-                            val target = powerAssistantTargets.getOrNull(index)
-                                ?: return@WindowSpinnerPreference
-                            val targetPrefs = prefs ?: return@WindowSpinnerPreference
-                            if (putStringSync(
-                                    prefs = targetPrefs,
-                                    key = Prefs.Keys.POWER_KEY_ASSISTANT_TARGET,
-                                    value = target.persistedValue,
+                    if (prefs != null || hasConnectedFramework) {
+                        PrefDivider()
+                        WindowSpinnerPreference(
+                            title = stringResource(R.string.ui_long_press_the_power_button_1958d0),
+                            summary = powerAssistantTarget.displayName(context),
+                            items = powerAssistantItems,
+                            selectedIndex = powerAssistantTargets.indexOf(powerAssistantTarget),
+                            onSelectedIndexChange = { index ->
+                                val target = powerAssistantTargets.getOrNull(index)
+                                    ?: return@WindowSpinnerPreference
+                                val targetPrefs = prefs ?: return@WindowSpinnerPreference
+                                if (putStringSync(
+                                        prefs = targetPrefs,
+                                        key = Prefs.Keys.POWER_KEY_ASSISTANT_TARGET,
+                                        value = target.persistedValue,
+                                    )
+                                ) {
+                                    powerAssistantTarget = target
+                                    enhancementHistory.recordCommittedTarget(target)
+                                } else {
+                                    Toast.makeText(
+                                        context.applicationContext,
+                                        context.getString(R.string.settings_write_failed),
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                }
+                            },
+                            dialogButtonString = stringResource(R.string.action_cancel),
+                            startAction = {
+                                TintedIcon(
+                                    icon = LucideR.drawable.lucide_ic_power,
+                                    tint = ColorOSOrangeRed,
                                 )
-                            ) {
-                                powerAssistantTarget = target
-                            } else {
-                                Toast.makeText(
-                                    context.applicationContext,
-                                    context.getString(R.string.settings_write_failed),
-                                    Toast.LENGTH_SHORT,
-                                ).show()
-                            }
-                        },
-                        dialogButtonString = stringResource(R.string.action_cancel),
-                        startAction = {
-                            TintedIcon(
-                                icon = LucideR.drawable.lucide_ic_power,
-                                tint = ColorOSOrangeRed,
+                            },
+                            enabled = prefs != null,
+                        )
+                        PrefDivider()
+                        SwitchPref(
+                            context = context,
+                            prefs = prefs,
+                            title = stringResource(R.string.ui_automatically_set_default_assistant_f86963),
+                            summary = stringResource(R.string.ui_valid_only_for_gemini_and_eta_d5b63d),
+                            key = Prefs.Keys.ASSISTANT_AUTO_CONFIG,
+                            icon = LucideR.drawable.lucide_ic_settings_2,
+                            iconTint = ColorOSVividGreen,
+                        )
+                    }
+                }
+            }
+
+            if (prefs != null || hasConnectedFramework) {
+                // ── 厂商助手兼容入口 ──────────────────────────────────────────
+                item(key = "section_oem_assistant_compatibility") {
+                    SmallTitle(stringResource(R.string.ui_xiaobu_xiaoai_compatible_entrance_ae918a))
+                    Card(modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp)) {
+                        SwitchPref(
+                            context = context,
+                            prefs = prefs,
+                            title = stringResource(R.string.ui_enable_vendor_assistant_custom_models_c8e465),
+                            key = Prefs.Keys.AGENT_CUSTOM_MODEL,
+                            icon = LucideR.drawable.lucide_ic_cpu,
+                            iconTint = ColorOSOrangeRed,
+                        )
+                        PrefDivider()
+                        SwitchPref(
+                            context = context,
+                            prefs = prefs,
+                            title = stringResource(R.string.ui_only_take_over_with_agent_prefix_d17556),
+                            key = Prefs.Keys.AGENT_REQUIRE_PREFIX,
+                            icon = LucideR.drawable.lucide_ic_message_square_code,
+                            iconTint = ColorOSAmberYellow,
+                        )
+                    }
+                }
+            }
+
+            if (prefs != null || hasConnectedFramework || capabilities.root.isGranted || hasUsedSystemizer) {
+                // ── Gemini ─────────────────────────────────────────────────
+                item(key = "section_gemini") {
+                    SmallTitle("Gemini")
+                    Card(modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp)) {
+                        if (prefs != null || hasConnectedFramework) {
+                            SwitchPref(
+                                context = context,
+                                prefs = prefs,
+                                title = stringResource(R.string.ui_maintain_hey_google_detection_after_screen_rest_9d6877),
+                                key = Prefs.Keys.HOTWORD_SELF_HEAL,
+                                icon = LucideR.drawable.lucide_ic_ear,
+                                iconTint = ColorOSAmberYellow,
                             )
-                        },
-                        enabled = prefs != null,
-                    )
-                    PrefDivider()
-                    SwitchPref(
-                        context = context,
-                        prefs = prefs,
-                        title = stringResource(R.string.ui_automatically_set_default_assistant_f86963),
-                        summary = stringResource(R.string.ui_valid_only_for_gemini_and_eta_d5b63d),
-                        key = Prefs.Keys.ASSISTANT_AUTO_CONFIG,
-                        icon = LucideR.drawable.lucide_ic_settings_2,
-                        iconTint = ColorOSVividGreen,
-                    )
-                }
-            }
-
-            // ── 厂商助手兼容入口 ──────────────────────────────────────────
-            item(key = "section_oem_assistant_compatibility") {
-                SmallTitle(stringResource(R.string.ui_xiaobu_xiaoai_compatible_entrance_ae918a))
-                Card(modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp)) {
-                    SwitchPref(
-                        context = context,
-                        prefs = prefs,
-                        title = stringResource(R.string.ui_enable_vendor_assistant_custom_models_c8e465),
-                        key = Prefs.Keys.AGENT_CUSTOM_MODEL,
-                        icon = LucideR.drawable.lucide_ic_cpu,
-                        iconTint = ColorOSOrangeRed,
-                    )
-                    PrefDivider()
-                    SwitchPref(
-                        context = context,
-                        prefs = prefs,
-                        title = stringResource(R.string.ui_only_take_over_with_agent_prefix_d17556),
-                        key = Prefs.Keys.AGENT_REQUIRE_PREFIX,
-                        icon = LucideR.drawable.lucide_ic_message_square_code,
-                        iconTint = ColorOSAmberYellow,
-                    )
-                }
-            }
-
-            // ── Gemini ─────────────────────────────────────────────────
-            item(key = "section_gemini") {
-                SmallTitle("Gemini")
-                Card(modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp)) {
-                    SwitchPref(
-                        context = context,
-                        prefs = prefs,
-                        title = stringResource(R.string.ui_maintain_hey_google_detection_after_screen_rest_9d6877),
-                        key = Prefs.Keys.HOTWORD_SELF_HEAL,
-                        icon = LucideR.drawable.lucide_ic_ear,
-                        iconTint = ColorOSAmberYellow,
-                    )
-                    PrefDivider()
-                    SwitchPref(
-                        context = context,
-                        prefs = prefs,
-                        title = stringResource(R.string.ui_lock_screen_evokes_automatic_voice_input_1cde18),
-                        key = Prefs.Keys.LOCKSCREEN_VOICE_COMMAND,
-                        icon = LucideR.drawable.lucide_ic_lock,
-                        iconTint = ColorOSRed,
-                    )
-                    PrefDivider()
-                    SwitchPref(
-                        context = context,
-                        prefs = prefs,
-                        title = stringResource(R.string.ui_bright_screen_evokes_automatic_voice_input_4358fe),
-                        key = Prefs.Keys.SCREEN_ON_VOICE_COMMAND,
-                        icon = LucideR.drawable.lucide_ic_mic,
-                        iconTint = ColorOSLightBlue,
-                    )
-                    PrefDivider()
-                    ArrowPreference(
-                        title = stringResource(R.string.ui_convert_google_apps_to_system_apps_0f6d89),
-                        startAction = {
-                            TintedIcon(
-                                icon = LucideR.drawable.lucide_ic_package_check,
-                                tint = ColorOSVividGreen,
+                            PrefDivider()
+                            SwitchPref(
+                                context = context,
+                                prefs = prefs,
+                                title = stringResource(R.string.ui_lock_screen_evokes_automatic_voice_input_1cde18),
+                                key = Prefs.Keys.LOCKSCREEN_VOICE_COMMAND,
+                                icon = LucideR.drawable.lucide_ic_lock,
+                                iconTint = ColorOSRed,
                             )
-                        },
-                        enabled = !installingSystemizer,
-                        holdDownState = showSystemizerDialog,
-                        onClick = {
-                            if (!installingSystemizer) {
-                                showSystemizerDialog = true
-                            }
-                        },
-                    )
+                            PrefDivider()
+                            SwitchPref(
+                                context = context,
+                                prefs = prefs,
+                                title = stringResource(R.string.ui_bright_screen_evokes_automatic_voice_input_4358fe),
+                                key = Prefs.Keys.SCREEN_ON_VOICE_COMMAND,
+                                icon = LucideR.drawable.lucide_ic_mic,
+                                iconTint = ColorOSLightBlue,
+                            )
+                            PrefDivider()
+                        }
+                        if (capabilities.root.isGranted || hasUsedSystemizer) {
+                            ArrowPreference(
+                                title = stringResource(R.string.ui_convert_google_apps_to_system_apps_0f6d89),
+                                startAction = {
+                                    TintedIcon(
+                                        icon = LucideR.drawable.lucide_ic_package_check,
+                                        tint = ColorOSVividGreen,
+                                    )
+                                },
+                                summary = if (capabilities.root.isGranted) null else stringResource(R.string.capability_root_required),
+                                enabled = !installingSystemizer,
+                                holdDownState = showSystemizerDialog,
+                                onClick = {
+                                    if (!capabilities.root.isGranted) {
+                                        onNavigate(AppRoute.SystemEnhance)
+                                    } else if (!installingSystemizer) {
+                                        showSystemizerDialog = true
+                                    }
+                                },
+                            )
+                        }
+                    }
                 }
             }
 
-            // ── 一圈即搜 ────────────────────────────────────────────────
-            item(key = "section_circle_to_search") {
-                SmallTitle(stringResource(R.string.ui_search_in_one_turn_179584))
-                Card(modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp)) {
-                    SwitchPref(
-                        context = context,
-                        prefs = prefs,
-                        title = stringResource(R.string.ui_long_press_on_the_gesture_bar_triggers_a_circle_to_s_b80117),
-                        key = Prefs.Keys.GESTURE_BAR_CIRCLE_TO_SEARCH,
-                        icon = LucideR.drawable.lucide_ic_panel_bottom,
-                        iconTint = ColorOSRoyalBlue,
-                    )
-                    PrefDivider()
-                    SwitchPref(
-                        context = context,
-                        prefs = prefs,
-                        title = stringResource(R.string.ui_long_press_with_two_fingers_to_trigger_a_circle_sear_ab597a),
-                        key = Prefs.Keys.DOUBLE_FINGER_CIRCLE_TO_SEARCH,
-                        icon = LucideR.drawable.lucide_ic_hand,
-                        iconTint = ColorOSLightBlue,
-                    )
+            if (prefs != null || hasConnectedFramework) {
+                // ── 一圈即搜 ────────────────────────────────────────────────
+                item(key = "section_circle_to_search") {
+                    SmallTitle(stringResource(R.string.ui_search_in_one_turn_179584))
+                    Card(modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp)) {
+                        SwitchPref(
+                            context = context,
+                            prefs = prefs,
+                            title = stringResource(R.string.ui_long_press_on_the_gesture_bar_triggers_a_circle_to_s_b80117),
+                            key = Prefs.Keys.GESTURE_BAR_CIRCLE_TO_SEARCH,
+                            icon = LucideR.drawable.lucide_ic_panel_bottom,
+                            iconTint = ColorOSRoyalBlue,
+                        )
+                        PrefDivider()
+                        SwitchPref(
+                            context = context,
+                            prefs = prefs,
+                            title = stringResource(R.string.ui_long_press_with_two_fingers_to_trigger_a_circle_sear_ab597a),
+                            key = Prefs.Keys.DOUBLE_FINGER_CIRCLE_TO_SEARCH,
+                            icon = LucideR.drawable.lucide_ic_hand,
+                            iconTint = ColorOSLightBlue,
+                        )
+                    }
                 }
             }
 
@@ -585,46 +626,48 @@ internal fun SettingsScreen(
                             }
                         },
                     )
-                    PrefDivider()
-                    SwitchPreference(
-                        title = stringResource(R.string.ui_enforce_accessibility_55e838),
-                        checked = accessibilityProtectionEnabled,
-                        onCheckedChange = { enabled ->
-                            if (accessibilityProtectionPending) {
-                                return@SwitchPreference
-                            }
-                            accessibilityProtectionPending = true
-                            AccessibilityProtectionClient.setEnabled(
-                                context = context,
-                                enabled = enabled,
-                            ) { result ->
-                                accessibilityProtectionPending = false
-                                accessibilityProtectionEnabled = result.enabled
-                                accessibilityGranted = isAgentAccessibilityEnabled(context)
-                                val failureMessage = when (result.status) {
-                                    AccessibilityProtectionClient.ControlStatus.APPLIED -> null
-                                    AccessibilityProtectionClient.ControlStatus.UNAVAILABLE ->
-                                        context.getString(R.string.accessibility_protection_unavailable)
-                                    AccessibilityProtectionClient.ControlStatus.REJECTED ->
-                                        context.getString(R.string.accessibility_protection_rejected)
+                    if (prefs != null || hasConnectedFramework) {
+                        PrefDivider()
+                        SwitchPreference(
+                            title = stringResource(R.string.ui_enforce_accessibility_55e838),
+                            checked = accessibilityProtectionEnabled,
+                            onCheckedChange = { enabled ->
+                                if (accessibilityProtectionPending) {
+                                    return@SwitchPreference
                                 }
-                                if (failureMessage != null) {
-                                    Toast.makeText(
-                                        context.applicationContext,
-                                        failureMessage,
-                                        Toast.LENGTH_SHORT,
-                                    ).show()
+                                accessibilityProtectionPending = true
+                                AccessibilityProtectionClient.setEnabled(
+                                    context = context,
+                                    enabled = enabled,
+                                ) { result ->
+                                    accessibilityProtectionPending = false
+                                    accessibilityProtectionEnabled = result.enabled
+                                    accessibilityGranted = isAgentAccessibilityEnabled(context)
+                                    val failureMessage = when (result.status) {
+                                        AccessibilityProtectionClient.ControlStatus.APPLIED -> null
+                                        AccessibilityProtectionClient.ControlStatus.UNAVAILABLE ->
+                                            context.getString(R.string.accessibility_protection_unavailable)
+                                        AccessibilityProtectionClient.ControlStatus.REJECTED ->
+                                            context.getString(R.string.accessibility_protection_rejected)
+                                    }
+                                    if (failureMessage != null) {
+                                        Toast.makeText(
+                                            context.applicationContext,
+                                            failureMessage,
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
+                                    }
                                 }
-                            }
-                        },
-                        startAction = {
-                            TintedIcon(
-                                icon = LucideR.drawable.lucide_ic_shield_check,
-                                tint = ColorOSVividGreen,
-                            )
-                        },
-                        enabled = !accessibilityProtectionPending,
-                    )
+                            },
+                            startAction = {
+                                TintedIcon(
+                                    icon = LucideR.drawable.lucide_ic_shield_check,
+                                    tint = ColorOSVividGreen,
+                                )
+                            },
+                            enabled = prefs != null && !accessibilityProtectionPending,
+                        )
+                    }
                 }
             }
 
@@ -669,6 +712,13 @@ internal fun SettingsScreen(
             },
             onConfirm = {
                 if (installingSystemizer) return@SystemizerConfirmDialog
+                if (!capabilities.root.isGranted) {
+                    showSystemizerDialog = false
+                    onNavigate(AppRoute.SystemEnhance)
+                    return@SystemizerConfirmDialog
+                }
+                enhancementHistory.recordSystemizerUse()
+                hasUsedSystemizer = true
                 showSystemizerDialog = false
                 installingSystemizer = true
                 coroutineScope.launch {
@@ -770,9 +820,10 @@ private fun SwitchPref(
     iconTint: Color,
 ) {
     val enabled = prefs != null
+    val history = remember(context.applicationContext) { EnhancementSettingsHistory(context) }
     val default = Prefs.Keys.BOOLEAN_DEFAULTS[key] ?: true
     var checked by remember(prefs, key) {
-        mutableStateOf(prefs?.getBoolean(key, default) ?: default)
+        mutableStateOf(prefs?.getBoolean(key, default) ?: history.checked(key, default))
     }
     DisposableEffect(prefs, key) {
         val targetPrefs = prefs ?: return@DisposableEffect onDispose {}
@@ -794,6 +845,7 @@ private fun SwitchPref(
             val targetPrefs = prefs ?: return@SwitchPreference
             if (putBooleanSync(targetPrefs, key, value)) {
                 checked = value
+                history.recordCommittedBoolean(key, value)
                 if (key in Prefs.Keys.LOCAL_AGENT_KEYS) {
                     Prefs.reconcileAgentPreferences(EtaApp.serviceInstance)
                 }

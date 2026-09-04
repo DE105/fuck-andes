@@ -8,12 +8,14 @@ import io.github.mangi.eta.agent.terminal.DetachedTaskSupervisor
 import io.github.mangi.eta.agent.terminal.LinuxEnvironmentPaths
 import io.github.mangi.eta.agent.terminal.SharedFolderMounts
 import io.github.mangi.eta.agent.terminal.TerminalEnvironment
+import io.github.mangi.eta.agent.terminal.TerminalRuntime
 import io.github.mangi.eta.agent.terminal.UserTerminalController
 import io.github.mangi.eta.agent.terminal.isLinux
 import io.github.mangi.eta.agent.terminal.terminalEnvironment
 import io.github.mangi.eta.core.AndroidAgentLogger
 import io.github.mangi.eta.data.repository.LinuxEnvironmentSettingsRepository
 import io.github.mangi.eta.ui.components.ansiPlainText
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -67,11 +69,12 @@ internal data class UserTerminalUiState(
     val linuxReady: Boolean = false,
     val linuxEnvironment: TerminalEnvironment = TerminalEnvironment.DEBIAN,
     val daemonTasks: List<DaemonTaskUi> = emptyList(),
+    val failMessage: String? = null,
 )
 
 /**
  * 用户手动终端的 App 级状态所有者：把 [UserTerminalController] 的多会话线程模型映射为 Compose 状态。
- * 由 Activity 级 ViewModel 持有，离开终端页、旋转屏幕都会话不丢；App 进程死亡则会话随之结束。
+ * 普通会话由前台执行服务持有，离开终端页、旋转屏幕不会中断；App 进程死亡则会话随之结束。
  */
 internal class UserTerminalStore(
     context: Context,
@@ -84,6 +87,7 @@ internal class UserTerminalStore(
     }
 
     private val appContext = context.applicationContext
+    private val sessionLeases = ConcurrentHashMap<String, TerminalSessionLease>()
     private val controller = UserTerminalController(
         logger = AndroidAgentLogger,
         linuxRootfsPathProvider = { environment ->
@@ -92,6 +96,10 @@ internal class UserTerminalStore(
             }
         },
         linuxSharedMountsProvider = { SharedFolderMounts.current() },
+        onSessionExit = { sessionId ->
+            sessionLeases.remove(sessionId)?.release()
+            scope.launch { updateSessionEntry(sessionId) { it.copy(alive = false) } }
+        },
     )
     private val daemonSupervisor = DetachedTaskSupervisor(
         logger = AndroidAgentLogger,
@@ -189,6 +197,7 @@ internal class UserTerminalStore(
     fun closeSession(sessionId: String) {
         scope.launch {
             withContext(Dispatchers.IO) { controller.stopSession(sessionId) }
+            sessionLeases.remove(sessionId)?.release()
             sessionBlocks.remove(sessionId)
             sessionBuffers.remove(sessionId)
             _uiState.update { state ->
@@ -215,8 +224,9 @@ internal class UserTerminalStore(
         scope.launch {
             val entry = _uiState.value.sessions.find { it.id == sessionId } ?: return@launch
             withContext(Dispatchers.IO) { controller.stopSession(sessionId) }
+            sessionLeases.remove(sessionId)?.release()
             val opened = withContext(Dispatchers.IO) {
-                controller.openSession(entry.environment, entry.cwd)
+                openLeasedSession(entry.environment, entry.cwd)
             }
             when (opened) {
                 is UserTerminalController.OpenResult.Failed -> {
@@ -312,6 +322,34 @@ internal class UserTerminalStore(
 
     fun close() {
         controller.close()
+        sessionLeases.values.forEach { it.release() }
+        sessionLeases.clear()
+    }
+
+    private fun openLeasedSession(environment: TerminalEnvironment, cwd: String? = null): UserTerminalController.OpenResult {
+        val rootfs = environment.linuxDistribution?.let { LinuxEnvironmentPaths.rootfsDir(appContext, it).absolutePath }
+        val identity = TerminalRuntime.defaultIdentity(environment, rootfs)
+        val lease = if (identity == "user") {
+            TerminalSessionLease.acquire(appContext) { sessionId -> scope.launch { closeSession(sessionId) } }
+                ?: return UserTerminalController.OpenResult.Failed("BACKGROUND_START_NOT_ALLOWED", appContext.getString(R.string.capability_background_failed))
+        } else null
+        val result = try {
+            controller.openSession(environment, cwd = cwd, identity = identity)
+        } catch (failure: Throwable) {
+            lease?.release()
+            throw failure
+        }
+        if (result is UserTerminalController.OpenResult.Ready && lease != null) {
+            sessionLeases[result.sessionId] = lease
+            if (!lease.attach(result.sessionId) || !controller.sessionAlive(result.sessionId)) {
+                controller.stopSession(result.sessionId)
+                sessionLeases.remove(result.sessionId)?.release()
+                return UserTerminalController.OpenResult.Failed("TERMINAL_CLOSED", appContext.getString(R.string.terminal_session_closed))
+            }
+        } else if (result is UserTerminalController.OpenResult.Failed) {
+            lease?.release()
+        }
+        return result
     }
 
     /**
@@ -329,7 +367,7 @@ internal class UserTerminalStore(
             if (alive) return active.id
             // 已退出：原环境原 cwd 重开，块保留。
             val reopened = withContext(Dispatchers.IO) {
-                controller.openSession(active.environment, active.cwd)
+                openLeasedSession(active.environment, active.cwd)
             }
             return when (reopened) {
                 is UserTerminalController.OpenResult.Failed -> {
@@ -357,10 +395,13 @@ internal class UserTerminalStore(
 
     /** 新建会话并设为当前；失败时在当前块列表追加原因。返回新 sessionId。 */
     private suspend fun openSessionInternal(environment: TerminalEnvironment): String? {
-        val opened = withContext(Dispatchers.IO) { controller.openSession(environment) }
+        _uiState.update { it.copy(failMessage = null) }
+        val opened = withContext(Dispatchers.IO) { openLeasedSession(environment) }
         return when (opened) {
             is UserTerminalController.OpenResult.Failed -> {
-                _uiState.value.activeSessionId?.let { appendSystemBlock(it, opened.message) }
+                val activeId = _uiState.value.activeSessionId
+                if (activeId != null) appendSystemBlock(activeId, opened.message)
+                else _uiState.update { it.copy(failMessage = opened.message) }
                 null
             }
             is UserTerminalController.OpenResult.Ready -> {
@@ -387,6 +428,7 @@ internal class UserTerminalStore(
 
     /** 重启/重开场景：新 sessionId 接替旧会话的位置，命令块随 id 迁移。 */
     private fun replaceSession(oldId: String, opened: UserTerminalController.OpenResult.Ready) {
+        sessionLeases.remove(oldId)?.release()
         val inheritedBlocks = sessionBlocks.remove(oldId).orEmpty()
         sessionBlocks[opened.sessionId] = inheritedBlocks
         sessionBuffers.remove(oldId)
@@ -466,6 +508,7 @@ internal class UserTerminalStore(
             it.copy(running = false, cwd = result.cwd, alive = !result.sessionClosed)
         }
         if (result.sessionClosed) {
+            sessionLeases.remove(sessionId)?.release()
             appendSystemBlock(
                 sessionId,
                 appContext.getString(

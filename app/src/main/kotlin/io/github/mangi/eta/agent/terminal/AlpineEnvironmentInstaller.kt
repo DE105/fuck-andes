@@ -49,7 +49,7 @@ internal sealed interface AlpineInstallResult {
     data object RootUnavailable : AlpineInstallResult
     data object BusyBoxUnavailable : AlpineInstallResult
     data object EnvironmentUnavailable : AlpineInstallResult
-    data class Failed(val stage: AlpineInstallStage) : AlpineInstallResult
+    data class Failed(val stage: AlpineInstallStage, val code: String? = null, val message: String? = null) : AlpineInstallResult
 }
 
 /**
@@ -101,6 +101,9 @@ internal class AlpineEnvironmentInstaller(
         if (AlpineEnvironmentPaths.rootfsReady(rootfs.absolutePath)) {
             return@withContext AlpineInstallResult.AlreadyReady
         }
+        io.github.mangi.eta.data.repository.LinuxEnvironmentSettingsRepository.selectBackend(
+            LinuxDistribution.ALPINE, LinuxEnvironmentPaths.backendOf(rootfs.absolutePath),
+        )
         val artifact = artifactForAbis(Build.SUPPORTED_ABIS.toList())
             ?: return@withContext AlpineInstallResult.UnsupportedAbi(
                 Build.SUPPORTED_ABIS.firstOrNull().orEmpty().ifBlank { "unknown" },
@@ -127,6 +130,12 @@ internal class AlpineEnvironmentInstaller(
             if (!installRootfs(artifact, archive, rootfs)) {
                 return@withContext AlpineInstallResult.Failed(AlpineInstallStage.EXTRACTING)
             }
+        } catch (failure: RootlessInstallFailure) {
+            return@withContext AlpineInstallResult.Failed(AlpineInstallStage.EXTRACTING, failure.code, failure.message)
+        } catch (_: java.io.IOException) {
+            return@withContext AlpineInstallResult.Failed(AlpineInstallStage.EXTRACTING, "INSTALL_IO_FAILED", "安装文件无法读写，请检查内部存储空间并重试")
+        } catch (_: IllegalArgumentException) {
+            return@withContext AlpineInstallResult.Failed(AlpineInstallStage.EXTRACTING, "INVALID_ARCHIVE", "环境归档无效或包含不安全路径，请重新下载后重试")
         } finally {
             archive.delete()
         }
@@ -165,6 +174,10 @@ internal class AlpineEnvironmentInstaller(
     }
 
     private suspend fun runPreflight(): InstallerCommandResult {
+        if (LinuxEnvironmentPaths.backendOf(AlpineEnvironmentPaths.rootfsDir(context).absolutePath) == LinuxExecutionBackend.PROOT) {
+            return InstallerCommandResult(if (ProotCommandBuilder.available()) 0 else PREFLIGHT_ENVIRONMENT_UNAVAILABLE, "")
+        }
+        if (!TerminalRuntime.rootAvailable) return InstallerCommandResult(PREFLIGHT_ROOT_UNAVAILABLE, "")
         val requiredApplets = listOf(
             "ash",
             "chroot",
@@ -196,6 +209,9 @@ internal class AlpineEnvironmentInstaller(
         archive: File,
         rootfs: File,
     ): Boolean {
+        if (LinuxEnvironmentPaths.backendOf(rootfs.absolutePath) == LinuxExecutionBackend.PROOT) {
+            return RootlessLinuxInstaller.installBase(artifact, archive, rootfs, LinuxDistribution.ALPINE)
+        }
         val parent = rootfs.parentFile ?: return false
         val temporaryRootfs = File(parent, "rootfs.installing")
         val markerBody = "version=${artifact.version}\\nsha256=${artifact.sha256}\\n"
@@ -405,10 +421,11 @@ internal object InstallerShellRunner {
         timeoutSeconds: Long,
         environment: TerminalEnvironment,
         linuxRootfsPath: String? = null,
+        identity: String? = null,
     ): InstallerCommandResult = runInterruptible(Dispatchers.IO) {
         val supervisor = ShellProcessSupervisor()
         val process = supervisor.startShellProcess(
-            identity = "root",
+            identity = identity ?: TerminalRuntime.defaultIdentity(environment, linuxRootfsPath),
             command = command,
             mergeStderr = true,
             environment = environment,

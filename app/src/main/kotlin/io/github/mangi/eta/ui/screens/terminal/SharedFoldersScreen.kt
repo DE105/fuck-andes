@@ -1,8 +1,12 @@
 package io.github.mangi.eta.ui.screens.terminal
-import io.github.mangi.eta.R
-import androidx.compose.ui.res.stringResource
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Environment
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,15 +27,19 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.terminal.AlpineEnvironmentPaths
 import io.github.mangi.eta.agent.terminal.LinuxDistribution
 import io.github.mangi.eta.agent.terminal.LinuxEnvironmentPaths
 import io.github.mangi.eta.agent.terminal.SharedFolderMount
 import io.github.mangi.eta.agent.terminal.SharedFolderMounts
 import io.github.mangi.eta.agent.terminal.ShellProcessSupervisor
+import io.github.mangi.eta.agent.terminal.TerminalEnvironment
+import io.github.mangi.eta.agent.terminal.TerminalRuntime
 import io.github.mangi.eta.agent.terminal.runOneShotShell
 import io.github.mangi.eta.agent.terminal.shellQuote
 import io.github.mangi.eta.ui.components.MiuixDialogActions
@@ -76,6 +84,10 @@ internal fun SharedFoldersScreen(
     var showPicker by remember { mutableStateOf(false) }
     var removeTarget by remember { mutableStateOf<SharedFolderMount?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
+    val publicAccessLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        if (Environment.isExternalStorageManager()) showPicker = true
+        else notice = context.getString(R.string.capability_workspace_public_denied)
+    }
 
     fun refreshSources(list: List<SharedFolderMount>) {
         if (list.isEmpty()) {
@@ -133,7 +145,20 @@ internal fun SharedFoldersScreen(
                 }
                 BasicComponent(
                     title = stringResource(R.string.shared_folders_add),
-                    onClick = { showPicker = true },
+                    onClick = {
+                        if (TerminalRuntime.rootAvailable || Environment.isExternalStorageManager()) {
+                            showPicker = true
+                        } else {
+                            try {
+                                publicAccessLauncher.launch(Intent(
+                                    Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                                    Uri.parse("package:${context.packageName}"),
+                                ))
+                            } catch (_: android.content.ActivityNotFoundException) {
+                                notice = context.getString(R.string.capability_workspace_public_denied)
+                            }
+                        }
+                    },
                 )
             }
         }
@@ -199,7 +224,7 @@ internal fun SharedFoldersScreen(
                             // 清理空的挂载点目录；仍有会话占用时 rmdir 失败，无副作用。
                             runOneShotShell(
                                 processSupervisor = shellSupervisor,
-                                identity = "root",
+                                identity = TerminalRuntime.defaultIdentity(TerminalEnvironment.ANDROID),
                                 command = "rmdir " +
                                     shellQuote("${SharedFolderMounts.ANDROID_MOUNTS_ROOT}/${target.name}") +
                                     " 2>/dev/null",
@@ -226,7 +251,7 @@ private fun probeSources(
     }
     val result = runOneShotShell(
         processSupervisor = supervisor,
-        identity = "root",
+        identity = TerminalRuntime.defaultIdentity(TerminalEnvironment.ANDROID),
         command = script,
         timeoutSeconds = 15,
     )
@@ -238,8 +263,8 @@ private fun probeSources(
 }
 
 /**
- * 目录选择弹层：逐级浏览或直接输入路径，列表来自 root shell 的实时目录枚举，
- * 因此能到达 SAF 覆盖不到的位置（/data/data、外置存储等）。
+ * 目录选择弹层使用当前可用身份枚举目录；普通模式受 App 文件权限限制，
+ * Root 模式可以访问系统目录。公共存储授权在进入弹层前按需申请。
  * 确认时挂载的是当前已列出内容的目录（path）；路径输入框只用于跳转。
  */
 @Composable
@@ -272,7 +297,7 @@ private fun SharedFolderPickerDialog(
         val result = withContext(Dispatchers.IO) {
             runOneShotShell(
                 processSupervisor = supervisor,
-                identity = "root",
+                identity = TerminalRuntime.defaultIdentity(TerminalEnvironment.ANDROID),
                 command = "cd ${shellQuote(path)} && find . -mindepth 1 -maxdepth 1 -type d",
                 timeoutSeconds = 15,
             )

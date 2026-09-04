@@ -2,6 +2,7 @@ package io.github.mangi.eta.agent.accessibility
 
 import android.content.Context
 import android.os.SystemClock
+import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.core.AndroidAgentLogger
 
 /**
@@ -21,6 +22,7 @@ object AgentAccessibilityKeeper {
                     AccessibilityProtectionClient.ControlStatus.APPLIED
             },
             awaitServiceBinding = ::awaitServiceBinding,
+            protectionAvailable = { EtaApp.serviceInstance != null },
         )
         val elapsedMs = SystemClock.elapsedRealtime() - startedAt
         if (result.available) {
@@ -44,14 +46,15 @@ object AgentAccessibilityKeeper {
         protectionEnabled: () -> Boolean,
         requestRecovery: () -> Boolean,
         awaitServiceBinding: () -> Boolean,
+        protectionAvailable: () -> Boolean = { true },
     ): AccessibilityEnableResult {
         if (serviceAvailable()) {
             return AccessibilityEnableResult.available(recoveryRequested = false)
         }
-        if (!protectionEnabled()) {
+        if (!protectionAvailable() || !protectionEnabled()) {
             return AccessibilityEnableResult.failure(
                 code = "ACCESSIBILITY_UNAVAILABLE",
-                message = "Eta 无障碍服务未连接；请在设置中开启服务或启用“强制保持无障碍”",
+                message = "Eta 无障碍服务未连接；请在系统设置中开启 Eta 无障碍服务",
                 recoveryRequested = false,
             )
         }

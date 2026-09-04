@@ -39,6 +39,39 @@ class DetachedTaskSupervisorTest {
     }
 
     @Test
+    fun deniedForegroundLeaseNeverStartsProcess() {
+        val marker = File(temporaryFolder.root, "must-not-exist")
+        val supervisor = DetachedTaskSupervisor(NoopLogger, File(temporaryFolder.root, "records"),
+            daemonDir = File(temporaryFolder.root, "daemon").path,
+            acquireUserLease = { _, _ -> false })
+        val result = supervisor.start("touch ${shellQuote(marker.path)}", temporaryFolder.root.path, "user", TerminalEnvironment.ANDROID)
+        assertEquals("BACKGROUND_START_NOT_ALLOWED", (result as DaemonStartResult.Failed).code)
+        assertFalse(marker.exists())
+        assertTrue(supervisor.list().isEmpty())
+    }
+
+    @Test
+    fun stopDuringLeaseAcquisitionNeverStartsProcess() {
+        val marker = File(temporaryFolder.root, "must-not-exist")
+        var released = false
+        val supervisor = DetachedTaskSupervisor(NoopLogger, File(temporaryFolder.root, "records"),
+            daemonDir = File(temporaryFolder.root, "daemon").path,
+            acquireUserLease = { _, stop -> stop(); true },
+            releaseUserLease = { released = true })
+        val result = supervisor.start("touch ${shellQuote(marker.path)}", temporaryFolder.root.path, "user", TerminalEnvironment.ANDROID)
+        assertEquals("TASK_CANCELLED", (result as DaemonStartResult.Failed).code)
+        assertFalse(marker.exists())
+        assertTrue(released)
+    }
+
+    @Test
+    fun rootStartWithoutGrantIsRejectedBeforeLaunchingShell() {
+        val supervisor = DetachedTaskSupervisor(NoopLogger, File(temporaryFolder.root, "records"), rootAvailable = { false })
+        val result = supervisor.start("id", "/", "root", TerminalEnvironment.ANDROID)
+        assertEquals("ROOT_REQUIRED", (result as DaemonStartResult.Failed).code)
+    }
+
+    @Test
     fun startedTaskKeepsRunningAfterLauncherExits() {
         val supervisor = newSupervisor()
         val result = supervisor.start(
@@ -50,7 +83,7 @@ class DetachedTaskSupervisorTest {
         assertTrue("$result", result is DaemonStartResult.Started)
         val task = (result as DaemonStartResult.Started).task
 
-        // start 返回时启动器已经退出；detached 进程仍活着，说明它脱离了启动器的生命周期。
+        // start 返回后宿主进程仍被托管；任务不依赖前台命令会话。
         assertTrue(ProcessHandle.of(task.pid).map { it.isAlive }.orElse(false))
 
         val statuses = supervisor.list()

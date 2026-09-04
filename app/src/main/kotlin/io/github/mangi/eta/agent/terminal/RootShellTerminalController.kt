@@ -20,6 +20,7 @@ internal class RootShellTerminalController(
     private val selectedLinuxEnvironmentProvider: () -> TerminalEnvironment = {
         TerminalEnvironment.ALPINE
     },
+    private val rootAvailable: () -> Boolean = { TerminalRuntime.rootAvailable },
 ) : AutoCloseable {
     private companion object {
         const val DEFAULT_CWD = "/data/local/tmp/eta"
@@ -44,7 +45,7 @@ internal class RootShellTerminalController(
             command = command,
             cwd = cwd,
             timeoutSeconds = timeoutSeconds,
-            identity = "root",
+            identity = defaultIdentity(TerminalEnvironment.ANDROID),
             environment = TerminalEnvironment.ANDROID,
             mergeStderr = false,
             toolName = "run_command"
@@ -65,7 +66,7 @@ internal class RootShellTerminalController(
             command = command,
             cwd = cwd,
             timeoutSeconds = timeoutSeconds,
-            identity = identity.ifBlank { "root" },
+            identity = identity.ifBlank { defaultIdentity(normalizeEnvironment(environment)) },
             environment = normalizeEnvironment(environment),
             mergeStderr = mergeStderr,
             toolName = "terminal"
@@ -134,12 +135,13 @@ internal class RootShellTerminalController(
     }
 
     private fun openSession(identity: String, cwd: String?, environment: String): String {
-        val normalizedIdentity = normalizeIdentity(identity.ifBlank { "root" })
         val normalizedEnvironment = normalizeEnvironment(environment)
-        environmentPreflight(normalizedIdentity, normalizedEnvironment)?.let { return it }
-        val safeCwd = normalizeCwd(cwd, normalizedEnvironment)
+        val normalizedIdentity = normalizeIdentity(identity.ifBlank { defaultIdentity(normalizedEnvironment) })
+        val sessionRootfs = rootfsPathFor(normalizedEnvironment)
+        environmentPreflight(normalizedIdentity, normalizedEnvironment, sessionRootfs)?.let { return it }
+        val safeCwd = normalizeCwd(cwd, normalizedEnvironment, normalizedIdentity)
         val id = "term_" + UUID.randomUUID().toString().take(8)
-        val process = startSessionProcess(normalizedIdentity, normalizedEnvironment)
+        val process = startSessionProcess(normalizedIdentity, normalizedEnvironment, sessionRootfs)
             ?: return errorJson(
                 "PROCESS_START_FAILED",
                 "无法启动 ${normalizedEnvironment.wireName}/$normalizedIdentity terminal session",
@@ -150,6 +152,7 @@ internal class RootShellTerminalController(
             id = id,
             identity = normalizedIdentity,
             environment = normalizedEnvironment,
+            rootfsPath = sessionRootfs,
             cwd = safeCwd,
             createdAt = System.currentTimeMillis(),
             process = process,
@@ -174,7 +177,7 @@ internal class RootShellTerminalController(
             return errorJson("TERMINAL_CLOSED", "terminal controller 已关闭")
         }
 
-        val mkdirDefault = if (safeCwd == DEFAULT_CWD) "mkdir -p ${shellQuote(DEFAULT_CWD)} && " else ""
+        val mkdirDefault = if (safeCwd == TerminalRuntime.workspace(normalizedIdentity)) "mkdir -p ${shellQuote(safeCwd)} && " else ""
         val setup = "${mkdirDefault}cd ${shellQuote(safeCwd)} && export TERM=dumb NO_COLOR=1"
         val setupResult = runSessionCommand(session, setup, timeoutMs = 5_000)
         if (setupResult.exitCode != 0 || setupResult.timedOut) {
@@ -209,9 +212,9 @@ internal class RootShellTerminalController(
             synchronized(sessions) { sessions[id] }
                 ?: return errorJson("SESSION_NOT_FOUND", "未找到 terminal session：$id")
         }
-        val effectiveIdentity = session?.identity ?: normalizeIdentity(identity.ifBlank { "root" })
         val effectiveEnvironment = session?.environment ?: normalizeEnvironment(environment)
-        environmentPreflight(effectiveIdentity, effectiveEnvironment)?.let { return it }
+        val effectiveIdentity = session?.identity ?: normalizeIdentity(identity.ifBlank { defaultIdentity(effectiveEnvironment) })
+        environmentPreflight(effectiveIdentity, effectiveEnvironment, session?.rootfsPath ?: rootfsPathFor(effectiveEnvironment))?.let { return it }
         val effectiveCwd = cwd?.takeIf { it.isNotBlank() } ?: session?.cwd
         if (async) {
             if (session != null) {
@@ -265,8 +268,8 @@ internal class RootShellTerminalController(
         require(trimmed.length <= MAX_COMMAND_CHARS) { "command 过长：${trimmed.length}" }
         val normalizedIdentity = normalizeIdentity(identity)
         environmentPreflight(normalizedIdentity, environment)?.let { return it }
-        val safeCwd = normalizeCwd(cwd, environment)
-        val setup = if (safeCwd == DEFAULT_CWD) "mkdir -p ${shellQuote(DEFAULT_CWD)} && " else ""
+        val safeCwd = normalizeCwd(cwd, environment, normalizedIdentity)
+        val setup = if (safeCwd == TerminalRuntime.workspace(normalizedIdentity)) "mkdir -p ${shellQuote(safeCwd)} && " else ""
         val fullCommand = "${setup}cd ${shellQuote(safeCwd)} && export TERM=dumb NO_COLOR=1 && $trimmed"
         val process = processSupervisor.startShellProcess(
             identity = normalizedIdentity,
@@ -349,6 +352,7 @@ internal class RootShellTerminalController(
     ): String {
         val job = synchronized(asyncJobs) { asyncJobs[jobId] }
             ?: return errorJson("JOB_NOT_FOUND", "未找到 async terminal job：$jobId")
+        if (job.identity == "root" && !rootAvailable()) return errorJson("ROOT_REQUIRED", "Root 授权不可用")
         val stdoutRaw = job.stdout.text()
         val stderrRaw = job.stderr.text()
         val merged = stdoutRaw
@@ -394,10 +398,10 @@ internal class RootShellTerminalController(
         val trimmed = command.trim()
         if (trimmed.isBlank()) return errorJson("INVALID_ARGUMENT", "command 不能为空")
         require(trimmed.length <= MAX_COMMAND_CHARS) { "command 过长：${trimmed.length}" }
-        val normalizedIdentity = normalizeIdentity(identity.ifBlank { "root" })
         val normalizedEnvironment = normalizeEnvironment(environment)
+        val normalizedIdentity = normalizeIdentity(identity.ifBlank { defaultIdentity(normalizedEnvironment) })
         environmentPreflight(normalizedIdentity, normalizedEnvironment)?.let { return it }
-        val safeCwd = normalizeCwd(cwd, normalizedEnvironment)
+        val safeCwd = normalizeCwd(cwd, normalizedEnvironment, normalizedIdentity)
         return when (val result = supervisor.start(trimmed, safeCwd, normalizedIdentity, normalizedEnvironment)) {
             is DaemonStartResult.Started -> JSONObject()
                 .put("ok", true)
@@ -463,8 +467,10 @@ internal class RootShellTerminalController(
         val supervisor = detachedSupervisor
             ?: return errorJson("DAEMON_UNAVAILABLE", "守护任务宿主不可用")
         if (taskId.isBlank()) return errorJson("INVALID_ARGUMENT", "task_id 不能为空")
+        val task = supervisor.findTask(taskId) ?: return errorJson("TASK_NOT_FOUND", "未找到守护任务：$taskId")
+        if (task.identity == "root" && !rootAvailable()) return errorJson("ROOT_REQUIRED", "Root 授权不可用")
         if (!supervisor.stop(taskId)) {
-            return errorJson("TASK_NOT_FOUND", "未找到守护任务：$taskId")
+            return errorJson("DAEMON_STOP_FAILED", "守护任务停止失败，请重试")
         }
         return JSONObject()
             .put("ok", true)
@@ -717,9 +723,9 @@ internal class RootShellTerminalController(
         require(trimmed.length <= MAX_COMMAND_CHARS) { "command 过长：${trimmed.length}" }
         val normalizedIdentity = normalizeIdentity(identity)
         environmentPreflight(normalizedIdentity, environment)?.let { return it }
-        val safeCwd = normalizeCwd(cwd, environment)
+        val safeCwd = normalizeCwd(cwd, environment, normalizedIdentity)
         val timeout = timeoutSeconds.coerceIn(1, MAX_TIMEOUT_SECONDS)
-        val setup = if (safeCwd == DEFAULT_CWD) "mkdir -p ${shellQuote(DEFAULT_CWD)} && " else ""
+        val setup = if (safeCwd == TerminalRuntime.workspace(normalizedIdentity)) "mkdir -p ${shellQuote(safeCwd)} && " else ""
         val fullCommand = "${setup}cd ${shellQuote(safeCwd)} && export TERM=dumb NO_COLOR=1 && $trimmed"
         val result = runText(
             identity = normalizedIdentity,
@@ -766,6 +772,7 @@ internal class RootShellTerminalController(
     }
 
     fun readFile(path: String, offsetBytes: Int, maxBytes: Int): String {
+        if (!rootAvailable()) return UserFileAccess.read(path, offsetBytes, maxBytes)
         val safePath = normalizePath(path)
         val offset = offsetBytes.coerceAtLeast(0)
         val limit = maxBytes.coerceIn(1, MAX_READ_BYTES)
@@ -796,6 +803,7 @@ internal class RootShellTerminalController(
     }
 
     fun writeFile(path: String, content: String, append: Boolean): String {
+        if (!rootAvailable()) return UserFileAccess.write(path, content, append)
         val safePath = normalizePath(path)
         val bytes = content.toByteArray(Charsets.UTF_8)
         require(bytes.size <= MAX_WRITE_BYTES) { "写入内容过大：${bytes.size} bytes" }
@@ -825,6 +833,7 @@ internal class RootShellTerminalController(
     }
 
     fun listDirectory(path: String, showHidden: Boolean, limit: Int): String {
+        if (!rootAvailable()) return UserFileAccess.list(path, showHidden, limit)
         val safePath = normalizePath(path.ifBlank { DEFAULT_CWD })
         val maxEntries = limit.coerceIn(1, MAX_LIST_ENTRIES)
         val flags = if (showHidden) "-la" else "-l"
@@ -872,25 +881,41 @@ internal class RootShellTerminalController(
     private fun environmentPreflight(
         identity: String,
         environment: TerminalEnvironment,
+        rootfsPath: String? = rootfsPathFor(environment),
     ): String? = when {
-        environment.isLinux && identity != "root" ->
+        environment.isLinux && identity != "root" && LinuxEnvironmentPaths.backendOf(rootfsPath) != LinuxExecutionBackend.PROOT ->
             errorJson("LINUX_ENVIRONMENT_REQUIRES_ROOT", "Linux 工具环境仅支持 root identity")
-        environment.isLinux && !LinuxEnvironmentPaths.rootfsReady(rootfsPathFor(environment)) ->
+        environment.isLinux && !LinuxEnvironmentPaths.rootfsReady(rootfsPath) ->
             errorJson(
                 "LINUX_ENVIRONMENT_NOT_READY",
                 "Linux 工具环境尚未安装，请先在设置中完成环境配置",
             )
+        identity == "root" && !rootAvailable() -> errorJson("ROOT_REQUIRED", "Root 授权不可用")
+        environment.isLinux && LinuxEnvironmentPaths.backendOf(rootfsPath) == LinuxExecutionBackend.PROOT && identity == "root" ->
+            errorJson("INVALID_IDENTITY", "免 Root Linux 使用普通应用身份，请使用 identity=user")
         else -> null
     }
 
-    private fun normalizeCwd(cwd: String?, environment: TerminalEnvironment): String {
-        val defaultCwd = if (environment.isLinux) LINUX_DEFAULT_CWD else DEFAULT_CWD
+    private fun defaultIdentity(environment: TerminalEnvironment): String = when {
+        environment.isLinux -> TerminalRuntime.defaultIdentity(environment, rootfsPathFor(environment))
+        rootAvailable() -> "root"
+        else -> "user"
+    }
+
+    private fun normalizeCwd(cwd: String?, environment: TerminalEnvironment, identity: String): String {
+        val defaultCwd = if (environment.isLinux) LINUX_DEFAULT_CWD else TerminalRuntime.workspace(identity)
         val requested = cwd?.trim().orEmpty().ifBlank { defaultCwd }
         val environmentPath = when {
             requested == "~" || requested.startsWith("~/") || requested.startsWith("/") -> requested
             else -> "$defaultCwd/$requested"
         }
-        return normalizePath(environmentPath)
+        return if (environment.isLinux) {
+            val value = when { environmentPath == "~" -> "/root"; environmentPath.startsWith("~/") -> "/root/${environmentPath.removePrefix("~/")}"; else -> environmentPath }
+            File(value).toPath().normalize().toString()
+        } else if (identity == "user") {
+            val value = when { environmentPath == "~" -> defaultCwd; environmentPath.startsWith("~/") -> "$defaultCwd/${environmentPath.removePrefix("~/")}"; else -> environmentPath }
+            File(value).canonicalPath
+        } else normalizePath(environmentPath)
     }
 
     private fun normalizePath(path: String): String {
@@ -909,13 +934,14 @@ internal class RootShellTerminalController(
     private fun startSessionProcess(
         identity: String,
         environment: TerminalEnvironment,
+        rootfsPath: String?,
     ): Process? =
         processSupervisor.startShellProcess(
             identity = identity,
             command = null,
             mergeStderr = false,
             environment = environment,
-            linuxRootfsPath = rootfsPathFor(environment),
+            linuxRootfsPath = rootfsPath,
             linuxSharedMounts = sharedMountsFor(environment),
         )
 
@@ -1029,6 +1055,7 @@ internal class RootShellTerminalController(
         val id: String,
         val identity: String,
         val environment: TerminalEnvironment,
+        val rootfsPath: String?,
         var cwd: String,
         val createdAt: Long,
         val process: Process,

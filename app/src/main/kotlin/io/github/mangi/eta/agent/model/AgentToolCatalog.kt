@@ -1,6 +1,7 @@
 package io.github.mangi.eta.agent.model
 
 import org.json.JSONArray
+import io.github.mangi.eta.agent.tool.AgentToolCapabilities
 
 /** 声明模型可见的工具及其 JSON Schema；不包含任何执行逻辑。 */
 internal object AgentToolCatalog {
@@ -13,8 +14,9 @@ internal object AgentToolCatalog {
         skillGitHubDiscovery: Boolean = false,
         skillGitHubInstall: Boolean = false,
         memoryTools: Boolean = false,
+        capabilities: AgentToolCapabilities = AgentToolCapabilities(rootAvailable = true),
     ): JSONArray =
-        JSONArray().also { tools ->
+        capabilities.project(JSONArray().also { tools ->
             AgentContextAppToolCatalog.appendTo(tools)
             AgentGestureToolCatalog.appendTo(tools)
             AgentTextSystemToolCatalog.appendTo(tools)
@@ -35,5 +37,5 @@ internal object AgentToolCatalog {
                 AgentFileVisionToolCatalog.appendTo(tools)
                 AgentTerminalToolCatalog.appendTo(tools)
             }
-        }
+        })
 }

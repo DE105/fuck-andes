@@ -20,6 +20,8 @@ internal class UserTerminalController(
     private val linuxRootfsPathProvider: ((TerminalEnvironment) -> String?)? = null,
     private val processSupervisor: ShellProcessSupervisor = ShellProcessSupervisor(),
     private val linuxSharedMountsProvider: () -> List<SharedFolderMount> = { emptyList() },
+    private val rootAvailable: () -> Boolean = { TerminalRuntime.rootAvailable },
+    private val onSessionExit: (String) -> Unit = {},
 ) : AutoCloseable {
 
     private companion object {
@@ -80,28 +82,32 @@ internal class UserTerminalController(
     fun openSession(
         environment: TerminalEnvironment,
         cwd: String? = null,
-        identity: String = "root",
+        identity: String? = null,
     ): OpenResult {
+        val environmentRootfsPath = rootfsPath(environment)
+        val selectedIdentity = identity ?: if (environment.isLinux) {
+            TerminalRuntime.defaultIdentity(environment, environmentRootfsPath)
+        } else if (rootAvailable()) "root" else "user"
         synchronized(sessionLock) {
             pruneDeadSessionsLocked()
             if (sessions.size >= MAX_SESSIONS) {
                 return OpenResult.Failed("SESSION_LIMIT_REACHED", "会话数量已达上限")
             }
-            if (identity != "root" && identity != "user") {
+            if (selectedIdentity != "root" && selectedIdentity != "user") {
                 return OpenResult.Failed("INVALID_ARGUMENT", "identity 仅支持 root/user")
             }
-            if (environment.isLinux && identity != "root") {
+            if (environment.isLinux && selectedIdentity != "root" && LinuxEnvironmentPaths.backendOf(environmentRootfsPath) != LinuxExecutionBackend.PROOT) {
                 return OpenResult.Failed("LINUX_ENVIRONMENT_REQUIRES_ROOT", "Linux 工具环境仅支持 root identity")
             }
-            val environmentRootfsPath = rootfsPath(environment)
+            if (selectedIdentity == "root" && !rootAvailable()) return OpenResult.Failed("ROOT_REQUIRED", "Root 授权不可用")
             if (environment.isLinux &&
                 !LinuxEnvironmentPaths.rootfsReady(environmentRootfsPath)
             ) {
                 return OpenResult.Failed("LINUX_ENVIRONMENT_NOT_READY", "Linux 工具环境尚未安装")
             }
-            val safeCwd = cwd?.takeIf { it.isNotBlank() } ?: defaultCwd(environment)
+            val safeCwd = cwd?.takeIf { it.isNotBlank() } ?: if (environment.isLinux) LINUX_DEFAULT_CWD else TerminalRuntime.workspace(selectedIdentity)
             val process = processSupervisor.startShellProcess(
-                identity = identity,
+                identity = selectedIdentity,
                 command = null,
                 mergeStderr = false,
                 environment = environment,
@@ -113,6 +119,7 @@ internal class UserTerminalController(
                 },
             ) ?: return OpenResult.Failed("PROCESS_START_FAILED", "无法启动终端进程")
             val newSession = Session(
+                identity = selectedIdentity,
                 environment = environment,
                 cwd = safeCwd,
                 process = process,
@@ -125,20 +132,21 @@ internal class UserTerminalController(
             newSession.stderrThread = thread(name = "user-terminal-stderr", isDaemon = true) {
                 process.errorStream.use { input -> newSession.stderr.readFrom(input, STREAM_MAX_BYTES) }
             }
+            val sessionId = "s${++nextSessionNumber}"
             newSession.waiterThread = thread(name = "user-terminal-waiter", isDaemon = true) {
                 runCatching { process.waitFor() }
                 newSession.closed = true
                 processSupervisor.retireExitedProcess(process)
+                onSessionExit(sessionId)
             }
-            val sessionId = "s${++nextSessionNumber}"
             if (!processSupervisor.transferActiveProcess(process) { sessions[sessionId] = newSession }) {
                 processSupervisor.terminateProcessTree(process)
                 return OpenResult.Failed("TERMINAL_CLOSED", "终端控制器已关闭")
             }
 
             val setup = buildString {
-                if (environment == TerminalEnvironment.ANDROID && safeCwd == DEFAULT_CWD) {
-                    append("mkdir -p ${shellQuote(DEFAULT_CWD)} && ")
+                if (environment == TerminalEnvironment.ANDROID && safeCwd == TerminalRuntime.workspace(selectedIdentity)) {
+                    append("mkdir -p ${shellQuote(safeCwd)} && ")
                 }
                 // 用户工具的安装器常把 PATH 写进 profile；常驻会话不是 login shell，这里显式补齐。
                 append("[ -f /etc/profile ] && . /etc/profile; ")
@@ -173,6 +181,10 @@ internal class UserTerminalController(
                 sessionClosed = true,
                 interrupted = false,
             )
+        if (current.identity == "root" && !rootAvailable()) {
+            stopSession(sessionId)
+            return ExecResult(null, current.cwd, sessionClosed = true, interrupted = true)
+        }
         if (trimmed.isBlank()) {
             return ExecResult(
                 exitCode = null,
@@ -219,6 +231,7 @@ internal class UserTerminalController(
     fun writeInput(sessionId: String, text: String): Boolean {
         val current = synchronized(sessionLock) { sessions[sessionId] } ?: return false
         if (current.closed || !current.process.isAlive) return false
+        if (current.identity == "root" && !rootAvailable()) return false
         return runCatching {
             synchronized(current.stdinLock) {
                 current.process.outputStream.write(text.toByteArray(Charsets.UTF_8))
@@ -389,6 +402,7 @@ internal class UserTerminalController(
     }
 
     private class Session(
+        val identity: String,
         val environment: TerminalEnvironment,
         var cwd: String,
         val process: Process,

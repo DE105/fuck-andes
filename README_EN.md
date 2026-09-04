@@ -6,7 +6,7 @@
 
 **A third-party, system-level AI agent for Android**
 
-With Root and LSPosed, Eta crosses the app sandbox and works at the system layer: hooking system components, taking over the power button and OEM assistant entries, and reading private data from OEM and third-party apps alike. These capabilities—close to an OEM assistant's, yet freer—are all open to the models you connect yourself (ChatGPT, DeepSeek, Kimi, and more, with your own API keys—BYOK):
+Eta supports ordinary and rooted Android devices in the same APK. Chat, accessibility GUI, the browser, Android Shell, PRoot Linux, Kimi Web, Skills, and MCP work without Root. Root and LSPosed add their respective system operations, private data access, and OEM assistant integrations. Your own model and API keys (BYOK) power the tools that the device can actually use:
 
 - **Direct system APIs** — alarms, media, volume, Wi-Fi, and more, callable directly by the model
 - **Personal context** — photos, calendar, SMS, notifications, recordings, health summaries, ColorOS system memory, and recent QQ / WeChat chat images, read on demand
@@ -15,14 +15,14 @@ With Root and LSPosed, Eta crosses the app sandbox and works at the system layer
 - **Built-in Kimi Code** — Kimi Code comes preinstalled in the Linux environment, and the mobile-friendly Kimi Web UI launches from the home screen in one tap—smooth Vibe Coding right on your phone
 - **GUI agent** — third-party apps exposing APIs or CLIs would be the ideal path, but the closed mobile ecosystem leaves most apps without any machine interface; and interfaces are designed for people, inherently unfriendly to models. The long tail without an interface is handled by watching the screen and acting on controls
 
-Other third-party phone agents serve mainstream users, and mainstream users don't have Root—so their capabilities stay inside the app sandbox, while system entry points and data belong to the vendor. Desktop coding agents (Codex, Claude Code) or OpenClaw, when ported directly onto a phone, remain a lobster trapped in the sandbox: no complete system environment, no way to operate the real Android device. And OEM assistants, constrained by their own ecosystems, don't touch third-party app data.
+The tools page defaults to the current device. The all-capabilities view explains additional requirements without requesting access or exposing extra tools to the model. System enhancements shows Root authorization and LSPosed connection separately.
 
 Eta can already watch the screen and order you a milk tea, but tapping screens should not be the destination. When the system can be reached directly, there is no need to simulate taps—the phone in the model's hands is a computer it can actually use.
 
 Your phone holds most of your data. With your permission, photos, notifications, calendars, notes, recordings, location, and health summaries join long-term memory as context, and Eta goes beyond carrying out commands: it gradually learns what matters to you and understands the story behind a request. No friend knows you better than your phone, and Eta can be that friend. Closeness does not mean giving up boundaries: every capability has its own switch, and you choose the model, what it may see and do, and when it must stop.
 
 > [!NOTE]
-> Full capability requires **Root** and **LSPosed** with libxposed API 102. The app itself is not limited to OPPO or Xiaomi hardware; ColorOS (Breeno) and HyperOS (XiaoAI) describe only the current system-assistant entry-point integrations.
+> Requires **Android 14+**. Core features do not require Root or LSPosed. Privileged tools require Root; OEM hooks require the matching ROM and **LSPosed** with libxposed API 102. The app itself is not limited to OPPO or Xiaomi hardware; ColorOS (Breeno) and HyperOS (XiaoAI) describe only the current system-assistant entry-point integrations.
 
 ## See it in action
 
@@ -63,12 +63,14 @@ Eta packs a complete computing environment into the phone: beyond the Android `u
 - **Persistent manual terminal:** parallel sessions you can switch between at any time, living independently of agent runs
 - **Interactive PTY console:** a real TUI experience with arrow keys, shortcuts, scrolling, and ANSI rendering
 - **Daemon tasks:** long-running jobs keep going after you leave the page, with logs available anytime
-- **Shared folders:** mount any Android directory into the Linux environment at `/workspace/mounts/`, readable and writable both ways
+- **Shared folders:** map authorized directories into `/workspace/mounts/`; without all-files access, the private workspace and file import/export remain available
 - **File browsing:** browse and preview files inside the Linux environment right in the app
+
+PRoot runs as the app UID with an independent rootfs and private workspace. Existing Root/chroot data, paths, and mounts stay intact. Changing Root access does not migrate environments or switch existing sessions. A simulated Linux root identity is not Android Root.
 
 ### Built-in Kimi Code
 
-- Kimi Code comes preinstalled in the Linux environment, ready out of the box
+- Install the selected Linux environment and Kimi Code, then launch Kimi Web from the home screen
 - One tap on the home screen launches the mobile-friendly Kimi Web UI, so a coding session is always within reach
 
 ## What you can ask Eta to do
@@ -147,7 +149,7 @@ BYOK—Bring Your Own Key—means the agent follows the capabilities of the mode
 - Native device access, sensitive reads, sensitive device actions, terminal/file tools, browsing, and memory are independent switches, currently enabled by default and re-read by the Runtime before every execution—you can turn any of them off at any time
 - Tool arguments must pass the advertised schema and executor validation; core packages and security-critical settings remain protected regardless of model output
 - Verification codes, Wi-Fi passwords, notification bodies, logs, and personal-data search results are available only to the active run and are never written to persistent conversation history; after notification access is granted, Eta keeps at most 1,000 notification records on-device for seven days
-- Memory reads and writes likewise serve only the active run, persisted as redacted summaries; files referenced in chat contribute only a Root-validated path to model context—never an upload or copy of the original
+- Memory reads and writes likewise serve only the active run, persisted as redacted summaries; chat file references use app-readable paths or authorized URIs; picker files without a readable path are imported into the private workspace before being referenced
 - Foreground GUI work shows an overlay with gesture feedback and can be interrupted or taken over at any time
 
 ## Limitations

@@ -5,9 +5,8 @@ import java.io.File
 /**
  * 面向用户的 Linux rootfs 只读文件浏览后端。
  *
- * rootfs 内文件归 root 所有，App 进程无法直接读写，因此列目录与读文件都通过
- * 一次性 root Shell 在宿主路径上执行。路径只做词法归一化、不解析符号链接：
- * 符号链接在 chroot 内有 Linux 语义，宿主侧 canonical 化会破坏该语义。
+ * Root 环境沿用宿主 Root Shell；免 Root 环境通过 PRoot 访问 guest 路径，
+ * 保留符号链接、工作区和共享目录的 Linux 语义。路径只做词法归一化。
  */
 internal object LinuxFileExplorer {
     const val DEFAULT_MAX_READ_BYTES = 256L * 1024L
@@ -69,7 +68,8 @@ internal object LinuxFileExplorer {
     ): ListResult {
         if (!LinuxEnvironmentPaths.rootfsReady(rootfsDir.absolutePath)) return ListResult.NotInstalled
         val hostPath = resolveHostPath(rootfsDir, linuxPath) ?: return ListResult.NotDirectory
-        val quoted = shellQuote(hostPath)
+        val rootless = LinuxEnvironmentPaths.backendOf(rootfsDir.absolutePath) == LinuxExecutionBackend.PROOT
+        val quoted = shellQuote(if (rootless) "/" + File(rootfsDir.path).toPath().relativize(File(hostPath).toPath()).toString() else hostPath)
         // 空目录时通配符原样传给 stat，报错进 stderr 被吞掉，stdout 为空即空列表。
         val script = """
             if [ ! -d $quoted ]; then exit $EXIT_NOT_DIRECTORY; fi
@@ -80,9 +80,11 @@ internal object LinuxFileExplorer {
         """.trimIndent()
         val result = runOneShotShell(
             processSupervisor = supervisor,
-            identity = "root",
+            identity = if (LinuxEnvironmentPaths.backendOf(rootfsDir.absolutePath) == LinuxExecutionBackend.PROOT) "user" else "root",
             command = script,
             timeoutSeconds = 15,
+            environment = if (rootless) TerminalEnvironment.ALPINE else TerminalEnvironment.ANDROID,
+            linuxRootfsPath = rootfsDir.absolutePath,
         )
         return when (result.exitCode) {
             0 -> ListResult.Success(parseStatOutput(result.output.decodeToString()))
@@ -101,7 +103,8 @@ internal object LinuxFileExplorer {
     ): ReadResult {
         if (!LinuxEnvironmentPaths.rootfsReady(rootfsDir.absolutePath)) return ReadResult.NotInstalled
         val hostPath = resolveHostPath(rootfsDir, linuxPath) ?: return ReadResult.NotFile
-        val quoted = shellQuote(hostPath)
+        val rootless = LinuxEnvironmentPaths.backendOf(rootfsDir.absolutePath) == LinuxExecutionBackend.PROOT
+        val quoted = shellQuote(if (rootless) "/" + File(rootfsDir.path).toPath().relativize(File(hostPath).toPath()).toString() else hostPath)
         val script = """
             if [ ! -f $quoted ]; then exit $EXIT_NOT_DIRECTORY; fi
             if [ ! -r $quoted ]; then exit $EXIT_UNREADABLE; fi
@@ -110,9 +113,11 @@ internal object LinuxFileExplorer {
         """.trimIndent()
         val result = runOneShotShell(
             processSupervisor = supervisor,
-            identity = "root",
+            identity = if (LinuxEnvironmentPaths.backendOf(rootfsDir.absolutePath) == LinuxExecutionBackend.PROOT) "user" else "root",
             command = script,
             timeoutSeconds = 15,
+            environment = if (rootless) TerminalEnvironment.ALPINE else TerminalEnvironment.ANDROID,
+            linuxRootfsPath = rootfsDir.absolutePath,
         )
         if (result.exitCode != 0) {
             return when (result.exitCode) {

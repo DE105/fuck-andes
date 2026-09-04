@@ -34,6 +34,10 @@ internal class PinnedLinuxToolInstaller(
             if (!downloader.download(artifact, archive, onProgress)) return false
             coroutineContext.ensureActive()
             activate(tool, artifact, archive, rootfs)
+        } catch (_: java.io.IOException) {
+            false
+        } catch (_: IllegalArgumentException) {
+            false
         } finally {
             archive.delete()
         }
@@ -45,6 +49,9 @@ internal class PinnedLinuxToolInstaller(
         archive: File,
         rootfs: File,
     ): Boolean {
+        if (LinuxEnvironmentPaths.backendOf(rootfs.absolutePath) == LinuxExecutionBackend.PROOT) {
+            return activateRootless(tool, artifact, archive, rootfs)
+        }
         val command = when (tool) {
             ManagedLinuxTool.UV -> uvActivationCommand(artifact, archive, rootfs)
             ManagedLinuxTool.NODE -> nodeActivationCommand(artifact, archive, rootfs)
@@ -60,6 +67,34 @@ internal class PinnedLinuxToolInstaller(
                 "exitCode=${result.exitCode} outputChars=${result.output.length}",
         )
         return result.exitCode == 0
+    }
+
+    private suspend fun activateRootless(tool: ManagedLinuxTool, artifact: VerifiedArtifact, archive: File, rootfs: File): Boolean {
+        val name = tool.name.lowercase()
+        val versions = File(rootfs, "opt/eta/$name")
+        val target = File(versions, artifact.version)
+        val staging = File(rootfs, "opt/eta/$name.installing")
+        try {
+            if (staging.exists() && !staging.deleteRecursively()) return false
+            RootlessLinuxInstaller.extract(archive, staging, xz = tool == ManagedLinuxTool.NODE, stripComponents = 1)
+            require(versions.mkdirs() || versions.isDirectory)
+            if (target.exists() && !target.deleteRecursively()) return false
+            if (!staging.renameTo(target)) return false
+            val localBin = File(rootfs, "usr/local/bin").apply { mkdirs() }
+            when (tool) {
+                ManagedLinuxTool.UV -> listOf("uv", "uvx").forEach { command ->
+                    File(localBin, command).apply { writeText(uvWrapper(artifact.version, command)); require(setExecutable(true, false)) }
+                }
+                ManagedLinuxTool.NODE -> listOf("node", "npm", "npx").forEach { command ->
+                    val link = File(localBin, command).toPath()
+                    java.nio.file.Files.deleteIfExists(link)
+                    java.nio.file.Files.createSymbolicLink(link, java.nio.file.Path.of("../../../opt/eta/node/${artifact.version}/bin/$command"))
+                }
+            }
+            return true
+        } finally {
+            if (staging.exists()) staging.deleteRecursively()
+        }
     }
 
     private fun uvActivationCommand(

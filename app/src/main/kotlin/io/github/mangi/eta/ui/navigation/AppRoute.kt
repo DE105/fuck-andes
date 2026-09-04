@@ -48,6 +48,9 @@ sealed interface AppRoute : NavKey {
     data object SharedFolders : AppRoute
 
     @Serializable
+    data object Workspace : AppRoute
+
+    @Serializable
     data class LinuxFiles(val distribution: String) : AppRoute
 
     @Serializable

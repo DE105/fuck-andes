@@ -39,7 +39,7 @@ internal object AgentTerminalToolCatalog {
                                     JSONObject()
                                         .put("type", "string")
                                         .put("enum", JSONArray().put("user").put("root"))
-                                        .put("description", "Execution identity. Linux environment requires root. Default root.")
+                                        .put("description", "宿主执行身份。Android 默认使用当前可用身份；Linux 根据已选择的后端使用 user 或 root。PRoot 内模拟 root 不授予 Android 特权。")
                                 )
                                 .put(
                                     "environment",

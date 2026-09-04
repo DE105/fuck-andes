@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -32,6 +34,7 @@ fun MiuixScaffoldPage(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     actions: @Composable RowScope.() -> Unit = {},
+    listState: LazyListState = rememberLazyListState(),
     content: LazyListScope.() -> Unit,
 ) {
     val scrollBehavior = MiuixScrollBehavior()
@@ -55,6 +58,7 @@ fun MiuixScaffoldPage(
         WidePageContent { sidePadding ->
             // 保留 MiuixTheme 注入的默认越界工厂，让短内容页也能回弹到顶栏采样区。
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .horizontalCutoutPadding()

@@ -1,0 +1,4 @@
+--- a/src/extension/ashmem_memfd/ashmem_memfd.c
++++ b/src/extension/ashmem_memfd/ashmem_memfd.c
+@@ -3,0 +4 @@
++#include <string.h>

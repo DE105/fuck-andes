@@ -7,6 +7,8 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.SystemClock
 import io.github.mangi.eta.agent.browser.AgentBrowserSession
+import io.github.mangi.eta.agent.device.DeviceControlUnavailableException
+import io.github.mangi.eta.agent.device.RootAccess
 import io.github.mangi.eta.agent.device.RootShellDeviceController
 import io.github.mangi.eta.agent.device.BoundedRootCommandExecutor
 import io.github.mangi.eta.agent.model.AgentModelClient
@@ -87,19 +89,22 @@ internal class AgentLocalTools(
     private val skillPackageInstaller: SkillPackageInstaller? = null,
     runAvailableSkillIds: Set<String> = emptySet(),
     pendingSkillConflict: PendingSkillConflictCapability? = null,
+    private val rootAvailable: () -> Boolean = { RootAccess.isGranted },
 ) : AgentModelClient.ToolExecutor, AutoCloseable {
 
     private val closed = AtomicBoolean(false)
-    private val deviceController = RootShellDeviceController(logger, screenshotExcludedPackages)
-    private val rootCommandExecutor = BoundedRootCommandExecutor(logger)
+    private val deviceController = RootShellDeviceController(logger, screenshotExcludedPackages, rootAvailable)
+    private val rootCommandExecutor = BoundedRootCommandExecutor(logger, rootAvailable = rootAvailable)
     private val structuredDeviceTools = AgentStructuredDeviceTools(
         context = context,
         logger = logger,
         root = rootCommandExecutor,
+        rootAvailable = rootAvailable,
     )
-    private val imageTools = AgentImageTools(context, rootCommandExecutor)
+    private val imageTools = AgentImageTools(context, rootCommandExecutor, rootAvailable)
     private val terminalController = RootShellTerminalController(
         logger = logger,
+        rootAvailable = rootAvailable,
         linuxRootfsPath = AlpineEnvironmentPaths.rootfsDir(context).absolutePath,
         linuxRootfsPathProvider = { environment ->
             environment.linuxDistribution?.let { distribution ->
@@ -144,11 +149,17 @@ internal class AgentLocalTools(
     override fun execute(toolCall: AgentModelClient.ToolCall): AgentModelClient.ToolResult =
         runCatching {
             val args = JSONObject(toolCall.argumentsJson.ifBlank { "{}" })
+            if (AgentToolRequirements.find(toolCall.name) != null &&
+                AgentToolRequirements.rootDenied(toolCall.name, args, rootAvailable())
+            ) {
+                return@runCatching textResult(errorResult("ROOT_REQUIRED", "此操作需要 Root 授权，本次未执行"))
+            }
             deviceToolPermissionError(toolCall.name)?.let { return@runCatching it }
             memoryToolPermissionError(toolCall.name)?.let { return@runCatching it }
             when (val decision = beforeToolExecution(toolCall.name)) {
                 ToolExecutionDecision.Allow -> Unit
                 is ToolExecutionDecision.Reject -> {
+                    if (decision.code.startsWith("ACCESSIBILITY_")) publishedObservation.set(PublishedObservation())
                     return@runCatching textResult(
                         errorResult(
                             code = decision.code,
@@ -210,10 +221,10 @@ internal class AgentLocalTools(
         }.getOrElse { throwable ->
             textResult(
                 errorResult(
-                    code = if (throwable is InvalidToolArgumentException) {
-                        "INVALID_ARGUMENT"
-                    } else {
-                        "TOOL_ERROR"
+                    code = when (throwable) {
+                        is InvalidToolArgumentException -> "INVALID_ARGUMENT"
+                        is DeviceControlUnavailableException -> "ACCESSIBILITY_UNAVAILABLE"
+                        else -> "TOOL_ERROR"
                     },
                     message = throwable.message ?: throwable.javaClass.simpleName
                 )
@@ -350,6 +361,7 @@ internal class AgentLocalTools(
     }
 
     private fun observeScreen(args: JSONObject): AgentModelClient.ToolResult {
+        publishedObservation.set(PublishedObservation())
         val startedAt = SystemClock.elapsedRealtime()
         val options = AgentScreenObservationContract.resolve(args)
         val observation = screenObservationProvider?.invoke(options)
@@ -671,7 +683,7 @@ internal class AgentLocalTools(
             command = args.optString("command"),
             cwd = args.optString("cwd").ifBlank { null },
             timeoutMs = args.optInt("timeout_ms", 30_000),
-            identity = args.optString("identity", "root"),
+            identity = args.optString("identity"),
             mergeStderr = args.optBoolean("merge_stderr", false),
             sessionId = args.optString("session_id").ifBlank { null },
             jobId = args.optString("job_id").ifBlank { null },
@@ -700,7 +712,7 @@ internal class AgentLocalTools(
 
     private fun listDirectory(args: JSONObject): String =
         terminalController.listDirectory(
-            path = args.optString("path", "/data/local/tmp/eta"),
+            path = args.optString("path"),
             showHidden = args.optBoolean("show_hidden", false),
             limit = args.optInt("limit", 80)
         )

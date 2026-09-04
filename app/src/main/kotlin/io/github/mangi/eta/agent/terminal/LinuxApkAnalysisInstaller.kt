@@ -224,6 +224,9 @@ internal class LinuxApkAnalysisInstaller(
     }
 
     private suspend fun activateStaging(rootfs: File, staging: File): Boolean {
+        if (LinuxEnvironmentPaths.backendOf(rootfs.absolutePath) == LinuxExecutionBackend.PROOT) {
+            return activateRootless(rootfs, staging)
+        }
         val profileRoot = File(rootfs, "opt/eta/apk-analysis")
         val current = File(profileRoot, "current")
         val installing = File(profileRoot, "current.installing")
@@ -320,6 +323,12 @@ internal class LinuxApkAnalysisInstaller(
         val profileRoot = File(rootfs, "opt/eta/apk-analysis")
         val current = File(profileRoot, "current")
         val previous = File(profileRoot, "previous")
+        if (LinuxEnvironmentPaths.backendOf(rootfs.absolutePath) == LinuxExecutionBackend.PROOT) {
+            current.deleteRecursively()
+            File(rootfs, AlpineEnvironmentPaths.APK_ANALYSIS_MARKER).delete()
+            if (previous.exists()) previous.renameTo(current)
+            return
+        }
         val command = """
             ${AndroidBusyBox.discoveryScript()}
             [ -n "${'$'}eta_busybox" ] || exit 127
@@ -335,12 +344,43 @@ internal class LinuxApkAnalysisInstaller(
     private suspend fun cleanupAfterSuccess(rootfs: File, artifacts: Collection<File>) {
         artifacts.forEach(File::delete)
         val previous = File(rootfs, "opt/eta/apk-analysis/previous")
+        if (LinuxEnvironmentPaths.backendOf(rootfs.absolutePath) == LinuxExecutionBackend.PROOT) {
+            previous.deleteRecursively()
+            return
+        }
         val command = """
             ${AndroidBusyBox.discoveryScript()}
             [ -n "${'$'}eta_busybox" ] || exit 127
             "${'$'}eta_busybox" rm -rf ${shellQuote(previous.absolutePath)}
         """.trimIndent()
         InstallerShellRunner.run(command, 30, TerminalEnvironment.ANDROID)
+    }
+
+    private fun activateRootless(rootfs: File, staging: File): Boolean {
+        val profileRoot = File(rootfs, "opt/eta/apk-analysis").apply { mkdirs() }
+        val current = File(profileRoot, "current")
+        val previous = File(profileRoot, "previous")
+        if (previous.exists() && !previous.deleteRecursively()) return false
+        if (current.exists() && !current.renameTo(previous)) return false
+        try {
+            if (!staging.renameTo(current)) throw java.io.IOException("无法激活工具目录")
+            listOf("jadx/bin/jadx", "bin/java", "bin/apktool", "bin/smali", "bin/baksmali").forEach {
+                if (!File(current, it).setExecutable(true, false)) throw java.io.IOException("无法设置工具权限")
+            }
+            val localBin = File(rootfs, "usr/local/bin").apply { mkdirs() }
+            listOf("java", "jadx", "apktool", "smali", "baksmali").forEach { name ->
+                val path = File(localBin, name).toPath()
+                java.nio.file.Files.deleteIfExists(path)
+                val relative = if (name == "jadx") "jadx/bin/jadx" else "bin/$name"
+                java.nio.file.Files.createSymbolicLink(path, java.nio.file.Path.of("../../../opt/eta/apk-analysis/current/$relative"))
+            }
+            File(rootfs, AlpineEnvironmentPaths.APK_ANALYSIS_MARKER).delete()
+            return true
+        } catch (_: java.io.IOException) {
+            current.deleteRecursively()
+            if (previous.exists()) previous.renameTo(current)
+            return false
+        }
     }
 
     companion object {

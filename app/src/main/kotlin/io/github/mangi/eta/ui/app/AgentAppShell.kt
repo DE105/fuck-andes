@@ -20,7 +20,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.composables.icons.lucide.R as LucideR
 import io.github.mangi.eta.R
 import io.github.mangi.eta.ui.components.AdaptiveTopAppBar
 import io.github.mangi.eta.ui.components.ConversationSidePaneScaffold
@@ -29,9 +28,9 @@ import io.github.mangi.eta.ui.components.TopBarBackdrop
 import io.github.mangi.eta.ui.components.captureForTopBar
 import io.github.mangi.eta.ui.components.rememberTopBarBackdrop
 import io.github.mangi.eta.ui.components.topBarContainerColor
-import io.github.mangi.eta.ui.navigation.AppRoute
 import io.github.mangi.eta.ui.model.ConversationPaneUiState
 import io.github.mangi.eta.ui.model.ConversationSummaryUi
+import io.github.mangi.eta.ui.navigation.AppRoute
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Icon
@@ -43,6 +42,7 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.window.WindowListPopup
+import com.composables.icons.lucide.R as LucideR
 
 /**
  * Agent App 统一壳层。
@@ -65,6 +65,10 @@ fun AgentAppShell(
     onNewConversation: () -> Unit,
     onOpenTerminal: () -> Unit,
     onLaunchKimiWeb: () -> Unit,
+    kimiWebLabel: String,
+    canStopKimiWeb: Boolean,
+    onStopKimiWeb: () -> Unit,
+    onRefreshKimiWeb: () -> Unit,
     onOpenBrowser: () -> Unit,
     onSelectConversation: (String) -> Unit,
     onConversationRename: (ConversationSummaryUi) -> Unit,
@@ -98,6 +102,10 @@ fun AgentAppShell(
                             onNewConversation = onNewConversation,
                             onOpenTerminal = onOpenTerminal,
                             onLaunchKimiWeb = onLaunchKimiWeb,
+                            kimiWebLabel = kimiWebLabel,
+                            canStopKimiWeb = canStopKimiWeb,
+                            onStopKimiWeb = onStopKimiWeb,
+                            onRefreshKimiWeb = onRefreshKimiWeb,
                             onOpenBrowser = onOpenBrowser,
                         )
                     }
@@ -151,6 +159,10 @@ private fun AgentTopBar(
     onNewConversation: () -> Unit,
     onOpenTerminal: () -> Unit,
     onLaunchKimiWeb: () -> Unit,
+    kimiWebLabel: String,
+    canStopKimiWeb: Boolean,
+    onStopKimiWeb: () -> Unit,
+    onRefreshKimiWeb: () -> Unit,
     onOpenBrowser: () -> Unit,
 ) {
     val isHome = route is AppRoute.Home
@@ -172,6 +184,10 @@ private fun AgentTopBar(
                 onNewConversation = onNewConversation,
                 onOpenTerminal = onOpenTerminal,
                 onLaunchKimiWeb = onLaunchKimiWeb,
+                kimiWebLabel = kimiWebLabel,
+                canStopKimiWeb = canStopKimiWeb,
+                onStopKimiWeb = onStopKimiWeb,
+                onRefreshKimiWeb = onRefreshKimiWeb,
                 onOpenBrowser = onOpenBrowser,
             )
         }
@@ -208,11 +224,15 @@ private fun TopBarOverflowMenu(
     onNewConversation: () -> Unit,
     onOpenTerminal: () -> Unit,
     onLaunchKimiWeb: () -> Unit,
+    kimiWebLabel: String,
+    canStopKimiWeb: Boolean,
+    onStopKimiWeb: () -> Unit,
+    onRefreshKimiWeb: () -> Unit,
     onOpenBrowser: () -> Unit,
 ) {
     var showMenu by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { showMenu = true }) {
+        IconButton(onClick = { onRefreshKimiWeb(); showMenu = true }) {
             Icon(
                 painter = painterResource(LucideR.drawable.lucide_ic_ellipsis_vertical),
                 contentDescription = stringResource(R.string.action_more),
@@ -226,13 +246,16 @@ private fun TopBarOverflowMenu(
         ) {
             val newConversationText = stringResource(R.string.action_new_conversation)
             val openTerminalText = stringResource(R.string.action_open_terminal)
-            val launchKimiWebText = stringResource(R.string.action_launch_kimi_web)
+            val launchKimiWebText = kimiWebLabel
+            val stopKimiWebText = stringResource(R.string.capability_kimi_stop)
             val openBrowserText = stringResource(R.string.action_open_browser)
             val menuItems = remember(
                 newConversationText,
                 openTerminalText,
                 launchKimiWebText,
                 openBrowserText,
+                stopKimiWebText,
+                canStopKimiWeb,
             ) {
                 listOf(
                     DropdownItem(
@@ -275,7 +298,7 @@ private fun TopBarOverflowMenu(
                             )
                         },
                     ),
-                )
+                ) + if (canStopKimiWeb) listOf(DropdownItem(text = stopKimiWebText)) else emptyList()
             }
             ListPopupColumn {
                 menuItems.forEachIndexed { index, item ->
@@ -291,6 +314,7 @@ private fun TopBarOverflowMenu(
                                 1 -> onOpenTerminal()
                                 2 -> onLaunchKimiWeb()
                                 3 -> onOpenBrowser()
+                                4 -> onStopKimiWeb()
                             }
                         },
                     )
@@ -315,6 +339,7 @@ private fun titleForRoute(route: AppRoute?): String = when (route) {
     is AppRoute.DataBackup -> stringResource(R.string.data_backup_title)
     is AppRoute.Memory -> stringResource(R.string.route_memory)
     is AppRoute.LinuxEnvironment -> stringResource(R.string.route_linux_environment)
+    is AppRoute.Workspace -> stringResource(R.string.capability_workspace)
     is AppRoute.SharedFolders -> stringResource(R.string.route_shared_folders)
     is AppRoute.LinuxFiles -> stringResource(R.string.route_linux_files)
     is AppRoute.ModelProviders -> stringResource(R.string.route_model_providers)

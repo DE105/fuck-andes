@@ -2,6 +2,7 @@ package io.github.mangi.eta.agent.tool
 
 import android.app.ActivityManager
 import android.app.AlarmManager
+import android.app.Notification
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
@@ -17,6 +18,7 @@ import android.provider.AlarmClock
 import android.provider.Settings
 import android.view.KeyEvent
 import io.github.mangi.eta.agent.device.BoundedRootCommandExecutor
+import io.github.mangi.eta.agent.device.RootAccess
 import io.github.mangi.eta.agent.model.AgentModelClient
 import io.github.mangi.eta.core.AgentLogger
 import io.github.mangi.eta.agent.device.AgentNotificationHistoryService
@@ -31,6 +33,8 @@ internal class AgentStructuredDeviceTools(
     private val context: Context,
     private val logger: AgentLogger,
     private val root: BoundedRootCommandExecutor,
+    private val rootAvailable: () -> Boolean = { RootAccess.isGranted },
+    private val colorOs: () -> Boolean = { AgentToolCapabilities.isColorOsDevice() },
 ) {
     private val personalDataTools = AgentPersonalDataTools(root)
     private val colorOsMemoryTools = AgentColorOsMemoryTools(context, root)
@@ -68,7 +72,17 @@ internal class AgentStructuredDeviceTools(
     private fun searchPersonalOrders(args: JSONObject): AgentModelClient.ToolResult {
         val limit = args.optInt("limit", 10).coerceIn(1, 30)
         val query = args.optString("query").trim()
-        val memoryResult = runCatching {
+        val memoryResult = if (!rootAvailable()) {
+            JSONObject()
+                .put("ok", false)
+                .put("code", "ROOT_REQUIRED")
+                .put("message", "系统记忆来源需要设备 Root 权限；仍可查询已授权的通知历史")
+        } else if (!colorOs()) {
+            JSONObject()
+                .put("ok", false)
+                .put("code", "DEVICE_UNSUPPORTED")
+                .put("message", "此设备不支持系统记忆来源；仍可查询已授权的通知历史")
+        } else runCatching {
             JSONObject(colorOsMemoryTools.searchOrders(args).content)
         }.getOrElse {
             JSONObject().put("ok", false).put("code", "COLOROS_MEMORY_QUERY_FAILED")
@@ -230,10 +244,10 @@ internal class AgentStructuredDeviceTools(
         }
         val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
         val info = runCatching { wifi.connectionInfo }.getOrNull()
-        val rootWifiStatus = root.execute("cmd wifi status", maxOutputBytes = 32 * 1024)
+        val rootWifiStatus = if (rootAvailable()) root.execute("cmd wifi status", maxOutputBytes = 32 * 1024)
             .takeIf { it.ok }
             ?.stdout
-            .orEmpty()
+            .orEmpty() else ""
         val fallbackSsid = WIFI_STATUS_SSID.find(rootWifiStatus)
             ?.groupValues?.get(1)?.trim()?.trim('"')
         val fallbackRssi = WIFI_STATUS_RSSI.find(rootWifiStatus)
@@ -298,18 +312,31 @@ internal class AgentStructuredDeviceTools(
     private fun getSetting(args: JSONObject): String {
         val namespace = args.getString("namespace").lowercase(Locale.ROOT)
         val key = args.getString("key")
-        val publicValue = runCatching {
+        var publicReadFailure: String? = null
+        val publicValue = try {
             when (namespace) {
                 "system" -> Settings.System.getString(context.contentResolver, key)
                 "secure" -> Settings.Secure.getString(context.contentResolver, key)
                 "global" -> Settings.Global.getString(context.contentResolver, key)
                 else -> null
             }
-        }.getOrNull()
-        val value = publicValue ?: root.execute(
+        } catch (_: SecurityException) {
+            publicReadFailure = "SETTING_ACCESS_DENIED"
+            null
+        } catch (_: RuntimeException) {
+            publicReadFailure = "SETTING_READ_FAILED"
+            null
+        }
+        if (publicReadFailure != null && !rootAvailable()) {
+            return error(publicReadFailure, "系统不允许读取此设置，或设置服务暂不可用")
+        }
+        val rootValue = if (publicValue == null && rootAvailable()) root.execute(
             "settings --user current get ${shellQuote(namespace)} ${shellQuote(key)}",
-        ).takeIf { it.ok }
-            ?.stdout
+        ) else null
+        if (publicReadFailure != null && rootValue?.ok != true) {
+            return error(publicReadFailure, "系统不允许读取此设置，或设置服务暂不可用")
+        }
+        val value = publicValue ?: rootValue?.takeIf { it.ok }?.stdout
             ?.trim()
             ?.takeUnless { it == "null" }
         return ok("get_setting")
@@ -466,6 +493,7 @@ internal class AgentStructuredDeviceTools(
     private fun recentNotifications(args: JSONObject): String {
         val limit = args.optInt("limit", 10).coerceIn(1, 20)
         val packageFilter = args.optString("package_name").trim()
+        if (!rootAvailable()) return listenerNotifications(packageFilter, limit)
         val listed = root.execute("cmd notification list", maxOutputBytes = 256 * 1024)
         if (!listed.ok) return rootError(listed)
         val items = JSONArray()
@@ -489,6 +517,34 @@ internal class AgentStructuredDeviceTools(
                 )
             }
         return ok("recent_notifications").put("items", items).put("count", items.length()).toString()
+    }
+
+    private fun listenerNotifications(packageFilter: String, limit: Int): String {
+        if (!AgentNotificationHistoryService.isEnabled(context)) {
+            return error("NOTIFICATION_ACCESS_REQUIRED", "请先在权限健康页授予 Eta 通知使用权")
+        }
+        val notifications = AgentNotificationHistoryService.currentNotifications()
+            ?: return error("NOTIFICATION_LISTENER_UNAVAILABLE", "通知服务尚未连接，请稍后重试")
+        val items = JSONArray()
+        notifications.asSequence()
+            .filter { packageFilter.isBlank() || it.packageName == packageFilter }
+            .sortedByDescending { it.postTime }
+            .take(limit)
+            .forEach { notification ->
+                val extras = notification.notification.extras
+                items.put(
+                    JSONObject()
+                        .put("package_name", notification.packageName)
+                        .put("title", extras.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty().take(8_000))
+                        .put("text", extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty().take(8_000))
+                        .put("sub_text", extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString().orEmpty().take(8_000)),
+                )
+            }
+        return ok("recent_notifications")
+            .put("source", "notification_listener")
+            .put("items", items)
+            .put("count", items.length())
+            .toString()
     }
 
     private fun readSmsCode(args: JSONObject): String {

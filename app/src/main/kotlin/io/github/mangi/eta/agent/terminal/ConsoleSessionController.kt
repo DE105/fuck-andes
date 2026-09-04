@@ -16,6 +16,7 @@ internal class ConsoleSessionController(
     private val linuxRootfsPathProvider: ((TerminalEnvironment) -> String?)? = null,
     private val processSupervisor: ShellProcessSupervisor = ShellProcessSupervisor(),
     private val linuxSharedMountsProvider: () -> List<SharedFolderMount> = { emptyList() },
+    private val rootAvailable: () -> Boolean = { TerminalRuntime.rootAvailable },
 ) : AutoCloseable {
 
     private companion object {
@@ -58,6 +59,7 @@ internal class ConsoleSessionController(
         rows: Int,
         onOutput: (sessionId: String, chunk: ByteArray) -> Unit,
         onExit: (sessionId: String) -> Unit,
+        identity: String? = null,
     ): OpenResult {
         synchronized(sessionLock) {
             pruneDeadSessionsLocked()
@@ -65,13 +67,18 @@ internal class ConsoleSessionController(
                 return OpenResult.Failed("SESSION_LIMIT_REACHED", "会话数量已达上限")
             }
             val environmentRootfsPath = rootfsPath(environment)
+            val identity = identity ?: if (environment.isLinux) TerminalRuntime.defaultIdentity(environment, environmentRootfsPath) else if (rootAvailable()) "root" else "user"
+            if (identity !in setOf("root", "user")) return OpenResult.Failed("INVALID_ARGUMENT", "执行身份无效")
+            if (environment.isLinux && identity == "user" && LinuxEnvironmentPaths.backendOf(environmentRootfsPath) != LinuxExecutionBackend.PROOT) return OpenResult.Failed("LINUX_ENVIRONMENT_REQUIRES_ROOT", "所选 Linux 环境需要 Root")
+            if (environment.isLinux && identity == "root" && LinuxEnvironmentPaths.backendOf(environmentRootfsPath) == LinuxExecutionBackend.PROOT) return OpenResult.Failed("INVALID_IDENTITY", "免 Root Linux 使用普通应用身份")
+            if (identity == "root" && !rootAvailable()) return OpenResult.Failed("ROOT_REQUIRED", "Root 授权不可用")
             if (environment.isLinux &&
                 !LinuxEnvironmentPaths.rootfsReady(environmentRootfsPath)
             ) {
                 return OpenResult.Failed("LINUX_ENVIRONMENT_NOT_READY", "Linux 工具环境尚未安装")
             }
             val process = processSupervisor.startShellProcess(
-                identity = "root",
+                identity = identity,
                 command = null,
                 mergeStderr = true,
                 environment = environment,
@@ -84,10 +91,10 @@ internal class ConsoleSessionController(
                 pty = true,
                 ptyCols = cols,
                 ptyRows = rows,
-            ) ?: return OpenResult.Failed("PROCESS_START_FAILED", "无法启动控制台进程（缺少 BusyBox script？）")
+            ) ?: return OpenResult.Failed("PROCESS_START_FAILED", "无法启动控制台进程，请检查所选环境和终端组件")
 
             val sessionId = "c${++nextSessionNumber}"
-            val newSession = PtySession(environment, process)
+            val newSession = PtySession(environment, process, identity)
             sessions[sessionId] = newSession
             newSession.readerThread = thread(name = "console-pty-reader", isDaemon = true) {
                 val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
@@ -109,11 +116,11 @@ internal class ConsoleSessionController(
             }
             // 落到环境默认工作目录；clear 清掉这条引导命令本身的回显。
             // 用户工具的安装器常把 PATH 写进 profile；控制台 shell 不是 login shell，这里显式补齐。
-            val defaultCwd = if (environment.isLinux) "/workspace" else DEFAULT_ANDROID_CWD
-            val bootstrap = "mkdir -p $defaultCwd; " +
+            val defaultCwd = if (environment.isLinux) "/workspace" else TerminalRuntime.workspace(identity)
+            val bootstrap = "mkdir -p ${shellQuote(defaultCwd)}; " +
                 "[ -f /etc/profile ] && . /etc/profile; " +
                 "[ -f \"\$HOME/.profile\" ] && . \"\$HOME/.profile\"; " +
-                "cd $defaultCwd && clear\n"
+                "cd ${shellQuote(defaultCwd)} && clear\n"
             runCatching {
                 process.outputStream.write(bootstrap.toByteArray(Charsets.UTF_8))
                 process.outputStream.flush()
@@ -127,6 +134,10 @@ internal class ConsoleSessionController(
     fun write(sessionId: String, bytes: ByteArray) {
         val current = synchronized(sessionLock) { sessions[sessionId] } ?: return
         if (current.closed || !current.process.isAlive) return
+        if (current.identity == "root" && !rootAvailable()) {
+            closeSession(sessionId)
+            return
+        }
         runCatching {
             synchronized(current.stdinLock) {
                 current.process.outputStream.write(bytes)
@@ -173,6 +184,7 @@ internal class ConsoleSessionController(
     private class PtySession(
         val environment: TerminalEnvironment,
         val process: Process,
+        val identity: String,
     ) {
         val stdinLock = Any()
 

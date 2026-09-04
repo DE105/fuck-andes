@@ -4,6 +4,8 @@ import android.app.Application
 import android.os.Handler
 import android.os.Looper
 import io.github.mangi.eta.agent.skill.SkillRuntime
+import io.github.mangi.eta.agent.device.RootAccess
+import io.github.mangi.eta.agent.terminal.TerminalRuntime
 import io.github.mangi.eta.config.Prefs
 import io.github.mangi.eta.core.AndroidAgentLogger
 import io.github.mangi.eta.core.safeLogType
@@ -45,6 +47,8 @@ class EtaApp : Application(), XposedServiceHelper.OnServiceListener {
         if (!AppProcessPolicy.shouldInitializeFullRuntime(Application.getProcessName(), packageName)) {
             return
         }
+        TerminalRuntime.initialize(this)
+        RootAccess.initialize(this)
         SettingsDataStore.init(this)
         val predictiveBackEnabled = runBlocking(Dispatchers.IO) {
             AppearanceSettingsRepository.settings().predictiveBackEnabled

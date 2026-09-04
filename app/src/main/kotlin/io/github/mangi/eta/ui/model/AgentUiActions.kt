@@ -51,6 +51,8 @@ sealed interface AgentChatAction {
 }
 
 sealed interface AgentToolsAction {
+    data object OpenEnhancements : AgentToolsAction
+    data object OpenPermissions : AgentToolsAction
     data object NavigateBack : AgentToolsAction
     data object OpenBrowser : AgentToolsAction
 }
@@ -68,7 +70,9 @@ sealed interface AgentSkillsAction {
 
 sealed interface AgentSystemEnhanceAction {
     data object NavigateBack : AgentSystemEnhanceAction
-    data class ToggleItem(val itemId: String) : AgentSystemEnhanceAction
+    data object RequestRoot : AgentSystemEnhanceAction
+    data object RefreshRoot : AgentSystemEnhanceAction
+    data object OpenSettings : AgentSystemEnhanceAction
 }
 
 sealed interface AgentMemoryAction {

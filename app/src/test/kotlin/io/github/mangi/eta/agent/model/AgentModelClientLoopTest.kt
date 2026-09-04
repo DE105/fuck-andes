@@ -2,6 +2,7 @@ package io.github.mangi.eta.agent.model
 
 import io.github.mangi.eta.agent.runtime.AgentEvent
 import io.github.mangi.eta.agent.runtime.AgentRunController
+import io.github.mangi.eta.agent.tool.AgentToolCapabilities
 import java.util.concurrent.atomic.AtomicInteger
 import org.json.JSONArray
 import org.json.JSONObject
@@ -12,6 +13,48 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AgentModelClientLoopTest {
+    @Test
+    fun eachRoundUsesOneCapabilitySnapshotForDeclarationValidationAndPrompt() {
+        var root = true
+        var captures = 0
+        val executed = mutableListOf<String>()
+        val provider = ScriptedProvider(listOf(
+            { request, _ ->
+                assertTrue(request.tools.toString().contains("set_setting"))
+                assertTrue(request.messages.toString().contains("相关应用私有文件与数据库"))
+                assistant(finishReason = "tool_calls", toolCalls = listOf(toolCall("first", "get_current_context", "{}")))
+            },
+            { request, _ ->
+                assertFalse(request.tools.toString().contains("set_setting"))
+                assertFalse(request.messages.toString().contains("相关应用私有文件与数据库"))
+                assertTrue(request.messages.toString().contains("identity=user"))
+                assistant(finishReason = "tool_calls", toolCalls = listOf(
+                    toolCall("stale", "terminal", "{\"action\":\"open\",\"identity\":\"root\"}"),
+                ))
+            },
+            { request, _ ->
+                assertTrue(request.messages.toString().contains("INVALID_TOOL_ARGUMENTS"))
+                assistant(content = "完成", finishReason = "stop")
+            },
+        ))
+        AgentModelClient.complete(
+            config = modelConfig().copy(terminalTools = true, deviceSensitiveActionTools = true),
+            prompt = "开始",
+            provider = provider,
+            capabilitiesProvider = {
+                captures++
+                AgentToolCapabilities(rootAvailable = root)
+            },
+            toolExecutor = AgentModelClient.ToolExecutor {
+                executed += it.id
+                root = false
+                AgentModelClient.ToolResult("{\"ok\":true}")
+            },
+        )
+        assertEquals(listOf("first"), executed)
+        assertEquals(4, captures)
+    }
+
     @Test
     fun textOnlyRunReturnsIncrementalTranscript() {
         val provider = ScriptedProvider(
