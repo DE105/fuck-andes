@@ -12,11 +12,11 @@ internal object LinuxEnvironmentPaths {
         environmentDir(context, distribution, LinuxEnvironmentSettingsRepository.backend(context, distribution))
 
     fun environmentDir(context: Context, distribution: LinuxDistribution, backend: LinuxExecutionBackend): File =
-        File(context.filesDir, if (backend == LinuxExecutionBackend.CHROOT) {
-            "terminal/${distribution.wireName}"
+        if (backend == LinuxExecutionBackend.CHROOT) {
+            File(context.filesDir, "terminal/${distribution.wireName}")
         } else {
-            "terminal/proot/${distribution.wireName}"
-        })
+            TerminalPrivateStorage.prootEnvironment(context.filesDir, distribution)
+        }
 
     fun rootfsDir(context: Context, distribution: LinuxDistribution): File =
         File(environmentDir(context, distribution), "rootfs")
@@ -28,7 +28,7 @@ internal object LinuxEnvironmentPaths {
         rootfsDir(context, distribution, LinuxExecutionBackend.CHROOT)
 
     fun backendOf(rootfsPath: String?): LinuxExecutionBackend =
-        if (rootfsPath?.contains("/terminal/proot/") == true) LinuxExecutionBackend.PROOT else LinuxExecutionBackend.CHROOT
+        if (TerminalPrivateStorage.isProotPath(rootfsPath)) LinuxExecutionBackend.PROOT else LinuxExecutionBackend.CHROOT
 
     fun rootfsReady(rootfsPath: String?): Boolean {
         if (rootfsPath.isNullOrBlank()) return false

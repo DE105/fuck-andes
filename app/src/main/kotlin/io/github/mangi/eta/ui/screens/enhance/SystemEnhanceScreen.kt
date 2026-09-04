@@ -2,13 +2,11 @@ package io.github.mangi.eta.ui.screens.enhance
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
-import io.github.mangi.eta.ui.app.EnhancementSettingsHistory
 import io.github.mangi.eta.ui.app.description
 import io.github.mangi.eta.ui.app.rememberDeviceCapabilities
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
@@ -26,7 +24,6 @@ fun SystemEnhanceScreen(
 ) {
     val context = LocalContext.current
     val capabilities = rememberDeviceCapabilities()
-    val history = remember(context.applicationContext) { EnhancementSettingsHistory(context) }
     MiuixScaffoldPage(
         title = stringResource(R.string.capability_enhancements),
         onBack = { onAction(AgentSystemEnhanceAction.NavigateBack) },
@@ -86,16 +83,6 @@ fun SystemEnhanceScreen(
                 BasicComponent(title = stringResource(R.string.capability_hook_google), summary = stringResource(R.string.capability_hook_google_summary))
                 PrefDivider()
                 BasicComponent(title = stringResource(R.string.capability_hook_accessibility), summary = stringResource(R.string.capability_hook_accessibility_summary))
-            }
-        }
-        if (capabilities.root.isGranted || capabilities.xposedConnected || history.hasConnected || history.hasUsedSystemizer) {
-            item(key = "settings") {
-                Card(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-                    ArrowPreference(
-                        title = stringResource(R.string.capability_open_settings),
-                        onClick = { onAction(AgentSystemEnhanceAction.OpenSettings) },
-                    )
-                }
             }
         }
     }

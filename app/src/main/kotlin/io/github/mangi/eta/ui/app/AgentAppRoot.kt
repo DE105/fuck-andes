@@ -488,7 +488,6 @@ fun AgentAppRoot(
                             AgentSystemEnhanceAction.NavigateBack -> popRoute()
                             AgentSystemEnhanceAction.RequestRoot -> { RootAccess.request(context) }
                             AgentSystemEnhanceAction.RefreshRoot -> { RootAccess.refresh(context) }
-                            AgentSystemEnhanceAction.OpenSettings -> pushRoute(AppRoute.Settings)
                         }
                     },
                 )

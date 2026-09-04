@@ -72,7 +72,6 @@ sealed interface AgentSystemEnhanceAction {
     data object NavigateBack : AgentSystemEnhanceAction
     data object RequestRoot : AgentSystemEnhanceAction
     data object RefreshRoot : AgentSystemEnhanceAction
-    data object OpenSettings : AgentSystemEnhanceAction
 }
 
 sealed interface AgentMemoryAction {

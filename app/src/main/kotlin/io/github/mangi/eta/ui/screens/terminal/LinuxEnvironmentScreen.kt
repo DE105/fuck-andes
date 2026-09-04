@@ -388,8 +388,8 @@ internal fun LinuxEnvironmentScreen(
                         LinuxDistribution.DEBIAN -> debianStatus.title(context)
                     },
                     summary = when (selectedDistribution) {
-                        LinuxDistribution.ALPINE -> progress?.summary(context) ?: status.summary(context)
-                        LinuxDistribution.DEBIAN -> debianProgress?.summary(context) ?: debianStatus.summary(context)
+                        LinuxDistribution.ALPINE -> progress?.summary(context) ?: status.summary(context, backend)
+                        LinuxDistribution.DEBIAN -> debianProgress?.summary(context) ?: debianStatus.summary(context, backend)
                     },
                     endActions = {
                         TextButton(
@@ -592,8 +592,10 @@ private fun AlpineEnvironmentStatus.title(context: Context): String = when (stat
     AlpineEnvironmentState.READY -> context.getString(R.string.linux_alpine_ready, version.orEmpty()).trim()
 }
 
-private fun AlpineEnvironmentStatus.summary(context: Context): String = when (state) {
-    AlpineEnvironmentState.NOT_INSTALLED -> context.getString(R.string.linux_requirements)
+private fun AlpineEnvironmentStatus.summary(context: Context, backend: LinuxExecutionBackend): String = when (state) {
+    AlpineEnvironmentState.NOT_INSTALLED -> context.getString(
+        if (backend == LinuxExecutionBackend.PROOT) R.string.capability_linux_proot_requirements else R.string.linux_requirements,
+    )
     AlpineEnvironmentState.BASE_READY -> context.getString(R.string.linux_tools_incomplete)
     AlpineEnvironmentState.READY -> context.getString(R.string.linux_agent_ready_summary)
 }
@@ -604,8 +606,10 @@ private fun DebianEnvironmentStatus.title(context: Context): String = when (stat
     DebianEnvironmentState.READY -> context.getString(R.string.linux_debian_ready, version.orEmpty()).trim()
 }
 
-private fun DebianEnvironmentStatus.summary(context: Context): String = when (state) {
-    DebianEnvironmentState.NOT_INSTALLED -> context.getString(R.string.linux_debian_requirements)
+private fun DebianEnvironmentStatus.summary(context: Context, backend: LinuxExecutionBackend): String = when (state) {
+    DebianEnvironmentState.NOT_INSTALLED -> context.getString(
+        if (backend == LinuxExecutionBackend.PROOT) R.string.capability_linux_proot_requirements else R.string.linux_debian_requirements,
+    )
     DebianEnvironmentState.BASE_READY -> context.getString(R.string.linux_debian_tools_incomplete)
     DebianEnvironmentState.READY -> context.getString(R.string.linux_debian_agent_ready_summary)
 }

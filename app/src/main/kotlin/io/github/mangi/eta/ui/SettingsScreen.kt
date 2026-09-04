@@ -192,17 +192,6 @@ internal fun SettingsScreen(
         title = stringResource(R.string.ui_set_up_7debf9),
         onBack = onBack,
     ) {
-            if (hasConnectedFramework && prefs == null) {
-                item(key = "framework-reconnect") {
-                    Card(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-                        ArrowPreference(
-                            title = stringResource(R.string.capability_framework_reconnect),
-                            summary = stringResource(R.string.capability_framework_snapshot),
-                            onClick = { onNavigate(AppRoute.SystemEnhance) },
-                        )
-                    }
-                }
-            }
             // ── LLM 提供商 ──────────────────────────────────────────────
             item(key = "section_agent") {
                 SmallTitle(stringResource(R.string.settings_llm_providers))

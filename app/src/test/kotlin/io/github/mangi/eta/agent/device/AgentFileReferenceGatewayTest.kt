@@ -53,7 +53,7 @@ class AgentFileReferenceGatewayTest {
         val result = gateway.resolveDocumentUri(uri, AgentFileReferenceKind.File)
             as AgentFileReferenceGateway.Resolution.Success
         val imported = File(result.reference.absolutePath)
-        assertTrue(imported.path.startsWith(File(context.filesDir, "terminal/workspace/imports").path + "/"))
+        assertTrue(imported.path.startsWith(File(context.filesDir, "terminal-user/workspace/imports").path + "/"))
         assertEquals("授权内容", imported.readText())
         imported.parentFile?.deleteRecursively()
     }

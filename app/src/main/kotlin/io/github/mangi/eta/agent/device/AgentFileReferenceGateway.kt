@@ -8,6 +8,7 @@ import android.provider.OpenableColumns
 import io.github.mangi.eta.agent.model.AgentFileReference
 import io.github.mangi.eta.agent.model.AgentFileReferenceKind
 import io.github.mangi.eta.agent.model.hasUnsupportedControlCharacter
+import io.github.mangi.eta.agent.terminal.TerminalPrivateStorage
 import io.github.mangi.eta.core.AgentLogger
 import java.io.File
 import java.io.IOException
@@ -190,7 +191,8 @@ internal class AgentFileReferenceGateway(
         internal const val MAX_IMPORT_BYTES = 32L * 1024 * 1024
 
         internal fun importDocumentUri(context: Context, uri: Uri): Resolution {
-            val importDirectory = File(context.filesDir, "terminal/workspace/imports/${UUID.randomUUID()}")
+            val workspace = TerminalPrivateStorage.workspace(context.filesDir)
+            val importDirectory = File(workspace, "imports/${UUID.randomUUID()}")
             var completed = false
             return try {
                 val name = documentDisplayName(context, uri)

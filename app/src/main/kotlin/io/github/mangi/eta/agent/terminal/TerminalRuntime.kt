@@ -29,7 +29,7 @@ internal object TerminalRuntime {
     val publicStorageGranted: Boolean get() = appContext != null && android.os.Environment.isExternalStorageManager()
     val nativeLibraryDir: File? get() = appContext?.applicationInfo?.nativeLibraryDir?.let(::File)
     val userWorkspacePath: String get() = appContext?.let {
-        File(it.filesDir, "terminal/workspace").absolutePath
+        TerminalPrivateStorage.workspace(it.filesDir).absolutePath
     } ?: File(System.getProperty("java.io.tmpdir"), "eta-terminal-workspace").absolutePath
     val temporaryDirectory: File get() = appContext?.let { File(it.cacheDir, "terminal/proot") }
         ?: File(System.getProperty("java.io.tmpdir"), "eta-proot")

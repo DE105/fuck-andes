@@ -32,7 +32,6 @@
     <string name="capability_hook_google_summary">在 ColorOS 创建或修复系统能力与触发入口。需要 LSPosed、对应系统与 Google 应用作用域；Google 应用系统化另需 Root。</string>
     <string name="capability_hook_accessibility">无障碍保护</string>
     <string name="capability_hook_accessibility_summary">通过 system_server 维护服务启用状态，需要 LSPosed 的系统作用域。普通模式仍可手动开启无障碍。</string>
-    <string name="capability_open_settings">打开功能设置</string>
     <string name="capability_optional_root">可选增强权限</string>
     <string name="capability_import_denied">没有权限读取该路径，请选择文件导入或授权共享目录</string>
     <string name="capability_import_failed">文件导入失败，请重试</string>
@@ -42,6 +41,7 @@
     <string name="capability_linux_backend">运行方式</string>
     <string name="capability_linux_proot">普通模式 · PRoot</string>
     <string name="capability_linux_proot_summary">无需 Root，使用独立的私有 Linux 环境</string>
+    <string name="capability_linux_proot_requirements">使用独立的 App 私有目录，无需 Root 或 BusyBox</string>
     <string name="capability_linux_chroot">Root 模式 · chroot</string>
     <string name="capability_linux_chroot_summary">使用 Root 与独立挂载空间，保留已有环境</string>
     <string name="capability_linux_root_lost">当前环境使用 chroot，需要恢复 Root 授权；也可以选择 PRoot 安装独立环境</string>
@@ -71,8 +71,6 @@
     <string name="capability_workspace_public_granted">已授权，终端可访问公共目录</string>
     <string name="capability_workspace_parent">返回上级目录</string>
     <string name="capability_workspace_directory">文件夹</string>
-    <string name="capability_framework_reconnect">等待 LSPosed 重新连接</string>
-    <string name="capability_framework_snapshot">下方系统增强保留上次配置供查看，连接恢复后可继续修改</string>
     <string name="capability_kimi_checking">检查 Kimi Web…</string>
     <string name="capability_kimi_install">安装 Kimi Web</string>
     <string name="capability_kimi_preparing">Kimi Web 准备中…</string>

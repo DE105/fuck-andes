@@ -3,7 +3,7 @@ package io.github.mangi.eta.ui.app
 import android.content.Context
 import android.net.Uri
 import io.github.mangi.eta.agent.device.AgentFileReferenceGateway
-import io.github.mangi.eta.agent.terminal.TerminalRuntime
+import io.github.mangi.eta.agent.terminal.TerminalPrivateStorage
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -13,9 +13,10 @@ internal data class WorkspaceEntry(val path: String, val name: String, val direc
 
 internal class WorkspaceFileStore(context: Context) {
     private val appContext = context.applicationContext
-    private val root: File get() = File(TerminalRuntime.userWorkspacePath).canonicalFile
+    private val root: File get() = TerminalPrivateStorage.workspace(appContext.filesDir).canonicalFile
 
     suspend fun list(path: String): List<WorkspaceEntry> = withContext(Dispatchers.IO) {
+        if (!root.mkdirs() && !root.isDirectory) throw java.io.IOException("WORKSPACE_DIRECTORY_UNAVAILABLE")
         val directory = resolve(path)
         check(directory.isDirectory) { "WORKSPACE_NOT_DIRECTORY" }
         val files = directory.listFiles() ?: throw java.io.IOException("WORKSPACE_UNREADABLE")
