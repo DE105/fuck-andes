@@ -12,6 +12,31 @@ import org.junit.Test
 
 class AgentPromptBuilderTest {
     @Test
+    fun currentModelIdentityFollowsConfigWithCustomOrEmptyProviderPrompt() {
+        for (providerPrompt in listOf("自定义回答风格", "")) {
+            val config = modelConfig(providerPrompt, terminalTools = false, browserTools = false)
+                .copy(model = "provider/model-a", modelDisplayName = "显示名称")
+            for (modelId in listOf(config.model, "provider/model-b")) {
+                val messages = AgentPromptBuilder.buildSystemMessages(
+                    config = config.copy(model = modelId),
+                    skillContext = SkillContext.EMPTY,
+                    memoryContext = AgentMemoryContext.DISABLED,
+                    rootAvailable = false,
+                )
+
+                val identity = messages.systemContents().single { it.contains("当前配置的模型：") }
+                assertTrue(identity.contains("你是 Eta"))
+                assertTrue(identity.contains("当前配置的模型：\"$modelId\""))
+                assertFalse(identity.contains(config.modelDisplayName))
+                if (modelId != config.model) assertFalse(identity.contains(config.model))
+                if (providerPrompt.isNotBlank()) {
+                    assertEquals(providerPrompt, messages.getJSONObject(0).getString("content"))
+                }
+            }
+        }
+    }
+
+    @Test
     fun messagesKeepSystemHistoryAndCurrentImageInputInStableOrder() {
         val image = AgentModelClient.ModelImage(
             reference = "data:image/png;base64,AA==",
