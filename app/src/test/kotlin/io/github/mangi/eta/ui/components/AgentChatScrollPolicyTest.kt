@@ -7,6 +7,42 @@ import org.junit.Test
 
 class AgentChatScrollPolicyTest {
     @Test
+    fun networkCompletionKeepsFollowingUntilRenderedTailSettles() {
+        assertTrue(
+            resolveBottomFollowEnabled(
+                isStreaming = false,
+                keepBottomAnchored = true,
+                isUserDragging = false,
+                isBottomSettling = true,
+            )
+        )
+    }
+
+    @Test
+    fun draggingInterruptsCompletionFollowing() {
+        assertFalse(
+            resolveBottomFollowEnabled(
+                isStreaming = false,
+                keepBottomAnchored = true,
+                isUserDragging = true,
+                isBottomSettling = true,
+            )
+        )
+    }
+
+    @Test
+    fun completionDoesNotPullReaderBackFromHistory() {
+        assertFalse(
+            resolveBottomFollowEnabled(
+                isStreaming = false,
+                keepBottomAnchored = false,
+                isUserDragging = false,
+                isBottomSettling = true,
+            )
+        )
+    }
+
+    @Test
     fun completedContentExpansionDoesNotFollowBottom() {
         assertFalse(
             resolveBottomFollowEnabled(

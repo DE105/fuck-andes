@@ -718,6 +718,9 @@ private fun AgentMessageBlock(
     } else {
         null
     }
+    LaunchedEffect(retainedStreamingState, streamingRevealComplete, message.content) {
+        retainedStreamingState?.revealedContent = message.content.takeIf { streamingRevealComplete }
+    }
     LaunchedEffect(copied) {
         if (copied) {
             kotlinx.coroutines.delay(1_400)
@@ -891,6 +894,7 @@ private fun StableMarkdown(
  * 与组合解耦后，item 重建只是重新挂接效果，渲染进度原样保留。
  */
 internal class StreamingMarkdownState {
+    var revealedContent by mutableStateOf<String?>(null)
     val parserSession = StreamingGfmParserSession()
     val revealCoordinator = SmoothTextRevealCoordinator()
     val parseTargets = Channel<StreamingMarkdownTarget>(Channel.CONFLATED)
