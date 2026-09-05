@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <resources>
   <string name="app_name">Eta</string>
-  <string name="xposed_description">A system-level AI agent that takes over the Breeno and Super XiaoAI assistant entry points, enables Gemini and Circle to Search, and provides a built-in browser, terminal, and device tools.</string>
-  <string name="agent_accessibility_label">Eta device control</string>
-  <string name="agent_accessibility_description">Allow Eta to read the current screen and perform taps, swipes, text input, and system actions.</string>
+  <string name="xposed_description">A system-level AI agent that takes over Breeno and Super XiaoAI, enables Gemini and Circle to Search, and integrates browser, terminal, and device tools.</string>
+  <string name="agent_accessibility_label">Eta Agent</string>
+  <string name="agent_accessibility_description">Read screen content and perform taps, swipes, text input, and other actions to help the agent complete tasks.</string>
   <string name="notification_history_service_label">Eta notification history</string>
   <string name="voice_interaction_service_label">Eta assistant</string>
   <string name="recognition_service_label">Eta speech recognition</string>

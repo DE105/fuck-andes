@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <resources>
   <string name="app_name">Eta</string>
-  <string name="xposed_description">Eta 系統級 AI Agent：接管小布與超級小愛助理入口，啟用 Gemini 與圈選搜尋，並提供內建瀏覽器、終端機及裝置工具。</string>
-  <string name="agent_accessibility_label">Eta 裝置控制</string>
-  <string name="agent_accessibility_description">允許 Eta 讀取目前畫面並執行點按、滑動、文字輸入及系統操作。</string>
+  <string name="xposed_description">系統級 AI Agent，接管小布與超級小愛，解鎖 Gemini 與圈選搜尋，整合瀏覽器、終端機與裝置工具。</string>
+  <string name="agent_accessibility_label">Eta Agent</string>
+  <string name="agent_accessibility_description">讀取畫面內容並執行點按、滑動、文字輸入等操作，協助 Agent 完成任務。</string>
   <string name="notification_history_service_label">Eta 通知記錄</string>
   <string name="voice_interaction_service_label">Eta 系統助理</string>
   <string name="recognition_service_label">Eta 語音辨識</string>

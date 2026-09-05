@@ -350,7 +350,7 @@ internal class RootShellDeviceController(
             }
             return nodeActionJson("replace_text", result)
         }
-        return errorJson("ACCESSIBILITY_UNAVAILABLE", "replace_text 需要先启用 Eta 设备控制无障碍服务")
+        return errorJson("ACCESSIBILITY_UNAVAILABLE", "replace_text 需要先启用 Eta Agent 无障碍服务")
     }
 
     fun clearText(index: Int?, observation: ElementObservation?): String =
