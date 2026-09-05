@@ -7,11 +7,37 @@ import android.content.SharedPreferences
 import android.provider.Settings
 import android.service.voice.VoiceInteractionService
 import android.widget.Toast
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.rounded.AccessibilityNew
+import androidx.compose.material.icons.rounded.AccountTree
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Code
+import androidx.compose.material.icons.rounded.Dashboard
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Extension
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.GppMaybe
+import androidx.compose.material.icons.rounded.Hearing
+import androidx.compose.material.icons.rounded.Inventory
+import androidx.compose.material.icons.rounded.Inventory2
+import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.Layers
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Memory
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.PowerSettingsNew
+import androidx.compose.material.icons.rounded.Psychology
+import androidx.compose.material.icons.rounded.Security
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Smartphone
+import androidx.compose.material.icons.rounded.SwipeUp
+import androidx.compose.material.icons.rounded.Terminal
+import androidx.compose.material.icons.rounded.TouchApp
+import androidx.compose.material.icons.rounded.VerifiedUser
+import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
@@ -20,10 +46,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -45,15 +69,13 @@ import io.github.mangi.eta.ui.app.EnhancementSettingsHistory
 import io.github.mangi.eta.ui.app.rememberDeviceCapabilities
 import io.github.mangi.eta.ui.components.MiuixDialogActions
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
+import io.github.mangi.eta.ui.components.PreferenceIcon
 import io.github.mangi.eta.ui.navigation.AppRoute
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.HorizontalDivider
-import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -61,20 +83,6 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
-import com.composables.icons.lucide.R as LucideR
-
-// ── ColorOS / COUI 主色（ColorOS 16.1 Settings.apk: coui_color_*） ────────────────
-// 约定：设置页圆形图标/按钮底色只使用 ColorOS 设置主色。
-// 不要用 coui_color_*_variant、截图平均取样色或 Material/iOS 近似色替代，否则实心圆底会发灰或偏色。
-private val ColorOSOrangeRed = Color(0xFFFF7700)
-private val ColorOSRoyalBlue = Color(0xFF0066FF)
-private val ColorOSVividGreen = Color(0xFF00BD13)
-private val ColorOSAmberYellow = Color(0xFFFFB200)
-private val ColorOSLightBlue = Color(0xFF0066FF)
-private val ColorOSRed = Color(0xFFEB3B2F)
-private val ColorOSPurple = Color(0xFF0066FF)
-private val ColorOSSlateGray = Color(0xFF0066FF)
-private val ColorOSOrange = Color(0xFFFF7700)
 
 /**
  * 模块配置界面。
@@ -200,21 +208,19 @@ internal fun SettingsScreen(
                         title = stringResource(R.string.ui_model_provider_e8c7f5),
                         summary = providerSummary,
                         startAction = {
-                            TintedIcon(
-                                icon = LucideR.drawable.lucide_ic_cpu,
-                                tint = ColorOSPurple,
+                            PreferenceIcon(
+                                icon = Icons.Rounded.Memory,
                             )
                         },
                         onClick = { onNavigate(AppRoute.ModelProviders) },
                     )
-                    PrefDivider()
+
                     SwitchPref(
                         context = context,
                         prefs = agentPrefs,
                         title = stringResource(R.string.ui_deep_thinking_enabled_by_default_c032d6),
                         key = Prefs.Keys.AGENT_THINKING_ENABLED,
-                        icon = LucideR.drawable.lucide_ic_brain_circuit,
-                        iconTint = ColorOSRoyalBlue,
+                        icon = Icons.Rounded.Psychology,
                     )
                 }
             }
@@ -226,31 +232,28 @@ internal fun SettingsScreen(
                     ArrowPreference(
                         title = stringResource(R.string.ui_memory_b55ff5),
                         startAction = {
-                            TintedIcon(
-                                icon = LucideR.drawable.lucide_ic_notebook_tabs,
-                                tint = ColorOSOrange,
+                            PreferenceIcon(
+                                icon = Icons.AutoMirrored.Rounded.MenuBook,
                             )
                         },
                         onClick = { onNavigate(AppRoute.Memory) },
                     )
-                    PrefDivider()
+
                     ArrowPreference(
                         title = stringResource(R.string.route_skills),
                         startAction = {
-                            TintedIcon(
-                                icon = LucideR.drawable.lucide_ic_puzzle,
-                                tint = ColorOSRoyalBlue,
+                            PreferenceIcon(
+                                icon = Icons.Rounded.Extension,
                             )
                         },
                         onClick = { onNavigate(AppRoute.Skills) },
                     )
-                    PrefDivider()
+
                     ArrowPreference(
                         title = stringResource(R.string.route_mcp_servers),
                         startAction = {
-                            TintedIcon(
-                                icon = LucideR.drawable.lucide_ic_network,
-                                tint = ColorOSVividGreen,
+                            PreferenceIcon(
+                                icon = Icons.Rounded.AccountTree,
                             )
                         },
                         onClick = { onNavigate(AppRoute.McpServers) },
@@ -262,65 +265,66 @@ internal fun SettingsScreen(
             item(key = "section_tools") {
                 SmallTitle(stringResource(R.string.ui_tool_a72ef1))
                 Card(modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp)) {
+                    ArrowPreference(
+                        title = stringResource(R.string.settings_tools_list),
+                        startAction = { PreferenceIcon(Icons.Rounded.Dashboard) },
+                        onClick = { onNavigate(AppRoute.Tools) },
+                    )
+
                     SwitchPref(
                         context = context,
                         prefs = agentPrefs,
                         title = stringResource(R.string.ui_enable_web_browsing_tools_8b6b03),
                         key = Prefs.Keys.AGENT_BROWSER_TOOLS,
-                        icon = LucideR.drawable.lucide_ic_globe,
-                        iconTint = ColorOSVividGreen,
+                        icon = Icons.Rounded.Language,
                     )
-                    PrefDivider()
+
                     SwitchPref(
                         context = context,
                         prefs = agentPrefs,
                         title = stringResource(R.string.ui_enable_device_direct_tools_e2d595),
                         key = Prefs.Keys.AGENT_DEVICE_DIRECT_TOOLS,
-                        icon = LucideR.drawable.lucide_ic_smartphone,
-                        iconTint = ColorOSVividGreen,
+                        icon = Icons.Rounded.Smartphone,
                     )
-                    PrefDivider()
+
                     SwitchPref(
                         context = context,
                         prefs = agentPrefs,
                         title = stringResource(R.string.ui_allow_reading_of_sensitive_device_information_feaec0),
                         key = Prefs.Keys.AGENT_DEVICE_SENSITIVE_READ_TOOLS,
-                        icon = LucideR.drawable.lucide_ic_eye,
-                        iconTint = ColorOSAmberYellow,
+                        icon = Icons.Rounded.Visibility,
                     )
-                    PrefDivider()
+
                     SwitchPref(
                         context = context,
                         prefs = agentPrefs,
                         title = stringResource(R.string.ui_allow_sensitive_device_operation_3d42ea),
                         key = Prefs.Keys.AGENT_DEVICE_SENSITIVE_ACTION_TOOLS,
-                        icon = LucideR.drawable.lucide_ic_shield_alert,
-                        iconTint = ColorOSAmberYellow,
+                        icon = Icons.Rounded.GppMaybe,
                     )
-                    PrefDivider()
+
                     SwitchPref(
                         context = context,
                         prefs = agentPrefs,
                         title = stringResource(R.string.ui_enable_terminal_file_tools_18bb43),
                         key = Prefs.Keys.AGENT_TERMINAL_TOOLS,
-                        icon = LucideR.drawable.lucide_ic_file_terminal,
-                        iconTint = ColorOSAmberYellow,
+                        icon = Icons.Rounded.Terminal,
                     )
-                    PrefDivider()
+
                     ArrowPreference(
                         title = stringResource(R.string.ui_linux_tool_environment_314d22),
                         startAction = {
-                            TintedIcon(
-                                icon = LucideR.drawable.lucide_ic_container,
-                                tint = ColorOSVividGreen,
+                            PreferenceIcon(
+                                icon = Icons.Rounded.Inventory2,
                             )
                         },
                         onClick = { onNavigate(AppRoute.LinuxEnvironment) },
                     )
-                    PrefDivider()
+
                     ArrowPreference(
                         title = stringResource(R.string.capability_workspace),
                         summary = stringResource(R.string.capability_workspace_summary),
+                        startAction = { PreferenceIcon(Icons.Rounded.Folder) },
                         onClick = { onNavigate(AppRoute.Workspace) },
                     )
                 }
@@ -331,6 +335,7 @@ internal fun SettingsScreen(
                     ArrowPreference(
                         title = stringResource(R.string.capability_enhancements),
                         summary = stringResource(R.string.capability_enhancements_summary),
+                        startAction = { PreferenceIcon(Icons.Rounded.Security) },
                         onClick = { onNavigate(AppRoute.SystemEnhance) },
                     )
                 }
@@ -350,18 +355,15 @@ internal fun SettingsScreen(
                             },
                         ),
                         startAction = {
-                            TintedIcon(
-                                icon = LucideR.drawable.lucide_ic_bot,
-                                tint = ColorOSRoyalBlue,
+                            PreferenceIcon(
+                                icon = Icons.Rounded.AutoAwesome,
                             )
                         },
                         onClick = openAssistantSettings,
                     )
                     if (prefs != null || hasConnectedFramework) {
-                        PrefDivider()
                         WindowSpinnerPreference(
                             title = stringResource(R.string.ui_long_press_the_power_button_1958d0),
-                            summary = powerAssistantTarget.displayName(context),
                             items = powerAssistantItems,
                             selectedIndex = powerAssistantTargets.indexOf(powerAssistantTarget),
                             onSelectedIndexChange = { index ->
@@ -384,24 +386,22 @@ internal fun SettingsScreen(
                                     ).show()
                                 }
                             },
-                            dialogButtonString = stringResource(R.string.action_cancel),
                             startAction = {
-                                TintedIcon(
-                                    icon = LucideR.drawable.lucide_ic_power,
-                                    tint = ColorOSOrangeRed,
+                                PreferenceIcon(
+                                    icon = Icons.Rounded.PowerSettingsNew,
+                                    enabled = prefs != null,
                                 )
                             },
                             enabled = prefs != null,
                         )
-                        PrefDivider()
+
                         SwitchPref(
                             context = context,
                             prefs = prefs,
                             title = stringResource(R.string.ui_automatically_set_default_assistant_f86963),
                             summary = stringResource(R.string.ui_valid_only_for_gemini_and_eta_d5b63d),
                             key = Prefs.Keys.ASSISTANT_AUTO_CONFIG,
-                            icon = LucideR.drawable.lucide_ic_settings_2,
-                            iconTint = ColorOSVividGreen,
+                            icon = Icons.Rounded.Settings,
                         )
                     }
                 }
@@ -417,17 +417,15 @@ internal fun SettingsScreen(
                             prefs = prefs,
                             title = stringResource(R.string.ui_enable_vendor_assistant_custom_models_c8e465),
                             key = Prefs.Keys.AGENT_CUSTOM_MODEL,
-                            icon = LucideR.drawable.lucide_ic_cpu,
-                            iconTint = ColorOSOrangeRed,
+                            icon = Icons.Rounded.Memory,
                         )
-                        PrefDivider()
+
                         SwitchPref(
                             context = context,
                             prefs = prefs,
                             title = stringResource(R.string.ui_only_take_over_with_agent_prefix_d17556),
                             key = Prefs.Keys.AGENT_REQUIRE_PREFIX,
-                            icon = LucideR.drawable.lucide_ic_message_square_code,
-                            iconTint = ColorOSAmberYellow,
+                            icon = Icons.Rounded.Code,
                         )
                     }
                 }
@@ -444,36 +442,32 @@ internal fun SettingsScreen(
                                 prefs = prefs,
                                 title = stringResource(R.string.ui_maintain_hey_google_detection_after_screen_rest_9d6877),
                                 key = Prefs.Keys.HOTWORD_SELF_HEAL,
-                                icon = LucideR.drawable.lucide_ic_ear,
-                                iconTint = ColorOSAmberYellow,
+                                icon = Icons.Rounded.Hearing,
                             )
-                            PrefDivider()
+
                             SwitchPref(
                                 context = context,
                                 prefs = prefs,
                                 title = stringResource(R.string.ui_lock_screen_evokes_automatic_voice_input_1cde18),
                                 key = Prefs.Keys.LOCKSCREEN_VOICE_COMMAND,
-                                icon = LucideR.drawable.lucide_ic_lock,
-                                iconTint = ColorOSRed,
+                                icon = Icons.Rounded.Lock,
                             )
-                            PrefDivider()
+
                             SwitchPref(
                                 context = context,
                                 prefs = prefs,
                                 title = stringResource(R.string.ui_bright_screen_evokes_automatic_voice_input_4358fe),
                                 key = Prefs.Keys.SCREEN_ON_VOICE_COMMAND,
-                                icon = LucideR.drawable.lucide_ic_mic,
-                                iconTint = ColorOSLightBlue,
+                                icon = Icons.Rounded.Mic,
                             )
-                            PrefDivider()
+
                         }
                         if (capabilities.root.isGranted || hasUsedSystemizer) {
                             ArrowPreference(
                                 title = stringResource(R.string.ui_convert_google_apps_to_system_apps_0f6d89),
                                 startAction = {
-                                    TintedIcon(
-                                        icon = LucideR.drawable.lucide_ic_package_check,
-                                        tint = ColorOSVividGreen,
+                                    PreferenceIcon(
+                                        icon = Icons.Rounded.Inventory,
                                     )
                                 },
                                 summary = if (capabilities.root.isGranted) null else stringResource(R.string.capability_root_required),
@@ -502,17 +496,15 @@ internal fun SettingsScreen(
                             prefs = prefs,
                             title = stringResource(R.string.ui_long_press_on_the_gesture_bar_triggers_a_circle_to_s_b80117),
                             key = Prefs.Keys.GESTURE_BAR_CIRCLE_TO_SEARCH,
-                            icon = LucideR.drawable.lucide_ic_panel_bottom,
-                            iconTint = ColorOSRoyalBlue,
+                            icon = Icons.Rounded.SwipeUp,
                         )
-                        PrefDivider()
+
                         SwitchPref(
                             context = context,
                             prefs = prefs,
                             title = stringResource(R.string.ui_long_press_with_two_fingers_to_trigger_a_circle_sear_ab597a),
                             key = Prefs.Keys.DOUBLE_FINGER_CIRCLE_TO_SEARCH,
-                            icon = LucideR.drawable.lucide_ic_hand,
-                            iconTint = ColorOSLightBlue,
+                            icon = Icons.Rounded.TouchApp,
                         )
                     }
                 }
@@ -525,20 +517,18 @@ internal fun SettingsScreen(
                     ArrowPreference(
                         title = stringResource(R.string.appearance_title),
                         startAction = {
-                            TintedIcon(
-                                icon = LucideR.drawable.lucide_ic_palette,
-                                tint = ColorOSRoyalBlue,
+                            PreferenceIcon(
+                                icon = Icons.Rounded.Palette,
                             )
                         },
                         onClick = { onNavigate(AppRoute.AppearanceSettings) },
                     )
-                    PrefDivider()
+
                     ArrowPreference(
                         title = stringResource(R.string.data_backup_title),
                         startAction = {
-                            TintedIcon(
-                                icon = LucideR.drawable.lucide_ic_file_text,
-                                tint = ColorOSVividGreen,
+                            PreferenceIcon(
+                                icon = Icons.Rounded.Description,
                             )
                         },
                         onClick = { onNavigate(AppRoute.DataBackup) },
@@ -553,9 +543,8 @@ internal fun SettingsScreen(
                     ArrowPreference(
                         title = stringResource(R.string.ui_floating_window_permissions_076b77),
                         startAction = {
-                            TintedIcon(
-                                icon = LucideR.drawable.lucide_ic_layers,
-                                tint = ColorOSOrangeRed,
+                            PreferenceIcon(
+                                icon = Icons.Rounded.Layers,
                             )
                         },
                         endActions = {
@@ -567,7 +556,7 @@ internal fun SettingsScreen(
                                 color = if (overlayGranted) {
                                     MiuixTheme.colorScheme.onSurfaceVariantActions
                                 } else {
-                                    ColorOSOrangeRed
+                                    MiuixTheme.colorScheme.error
                                 },
                             )
                         },
@@ -584,13 +573,12 @@ internal fun SettingsScreen(
                             }
                         },
                     )
-                    PrefDivider()
+
                     ArrowPreference(
                         title = stringResource(R.string.ui_accessibility_enhancement_tools_8fd257),
                         startAction = {
-                            TintedIcon(
-                                icon = LucideR.drawable.lucide_ic_accessibility,
-                                tint = ColorOSRoyalBlue,
+                            PreferenceIcon(
+                                icon = Icons.Rounded.AccessibilityNew,
                             )
                         },
                         endActions = {
@@ -603,7 +591,7 @@ internal fun SettingsScreen(
                                 color = if (enabled) {
                                     MiuixTheme.colorScheme.onSurfaceVariantActions
                                 } else {
-                                    ColorOSRoyalBlue
+                                    MiuixTheme.colorScheme.primary
                                 },
                             )
                         },
@@ -616,7 +604,6 @@ internal fun SettingsScreen(
                         },
                     )
                     if (prefs != null || hasConnectedFramework) {
-                        PrefDivider()
                         SwitchPreference(
                             title = stringResource(R.string.ui_enforce_accessibility_55e838),
                             checked = accessibilityProtectionEnabled,
@@ -649,9 +636,9 @@ internal fun SettingsScreen(
                                 }
                             },
                             startAction = {
-                                TintedIcon(
-                                    icon = LucideR.drawable.lucide_ic_shield_check,
-                                    tint = ColorOSVividGreen,
+                                PreferenceIcon(
+                                    icon = Icons.Rounded.VerifiedUser,
+                                    enabled = prefs != null && !accessibilityProtectionPending,
                                 )
                             },
                             enabled = prefs != null && !accessibilityProtectionPending,
@@ -667,9 +654,8 @@ internal fun SettingsScreen(
                     ArrowPreference(
                         title = stringResource(R.string.ui_source_code_740296),
                         startAction = {
-                            TintedIcon(
-                                icon = LucideR.drawable.lucide_ic_github,
-                                tint = ColorOSPurple,
+                            PreferenceIcon(
+                                icon = Icons.Rounded.Code,
                             )
                         },
                         endActions = {
@@ -725,42 +711,6 @@ internal fun SettingsScreen(
         )
 }
 
-// ── 带色彩的圆形图标（ColorOS 风格：圆形背景 + 纯白图标） ────────────────────────────────
-
-@Composable
-private fun TintedIcon(
-    icon: Int,
-    tint: Color,
-) {
-    Box(
-        modifier = Modifier
-            .padding(end = 12.dp)
-            .size(32.dp)
-            .background(tint, CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            painter = painterResource(icon),
-            contentDescription = null,
-            modifier = Modifier.size(18.dp),
-            tint = Color.White,
-        )
-    }
-}
-
-// ── Card 内分隔线 ───────────────────────────────────────────────────────────
-
-@Composable
-private fun PrefDivider() {
-    HorizontalDivider(
-        modifier = Modifier.padding(
-            // 对齐 BasicComponent 内文字起始位置：
-            // insideMargin(16) + 图标 padding end(12) + 圆形宽度(32) = 60dp
-            start = 60.dp,
-        ),
-    )
-}
-
 // ── 系统化确认对话框 ─────────────────────────────────────────────────────────
 
 @Composable
@@ -805,8 +755,7 @@ private fun SwitchPref(
     title: String,
     summary: String? = null,
     key: String,
-    icon: Int,
-    iconTint: Color,
+    icon: ImageVector,
 ) {
     val enabled = prefs != null
     val history = remember(context.applicationContext) { EnhancementSettingsHistory(context) }
@@ -847,7 +796,7 @@ private fun SwitchPref(
             }
         },
         startAction = {
-            TintedIcon(icon = icon, tint = iconTint)
+            PreferenceIcon(icon = icon, enabled = enabled)
         },
         enabled = enabled,
     )

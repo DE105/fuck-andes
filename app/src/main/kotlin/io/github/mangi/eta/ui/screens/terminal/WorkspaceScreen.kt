@@ -9,6 +9,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.InsertDriveFile
+import androidx.compose.material.icons.rounded.DriveFolderUpload
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -25,8 +30,9 @@ import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.ui.app.WorkspaceEntry
 import io.github.mangi.eta.ui.app.WorkspaceFileStore
+import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
-import io.github.mangi.eta.ui.components.PrefDivider
+import io.github.mangi.eta.ui.components.PreferenceIcon
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
@@ -96,14 +102,25 @@ internal fun WorkspaceScreen(onBack: () -> Unit) {
         }
     }
     MiuixScaffoldPage(title = stringResource(R.string.capability_workspace), onBack = onBack) {
+        item(key = "workspace-info") {
+            BasicComponent(
+                title = stringResource(R.string.capability_workspace_private),
+                summary = stringResource(R.string.capability_workspace_private_summary),
+                modifier = Modifier.padding(horizontal = 12.dp),
+            )
+        }
         item(key = "actions") {
             Card(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-                BasicComponent(title = stringResource(R.string.capability_workspace_private), summary = stringResource(R.string.capability_workspace_private_summary))
-                ArrowPreference(title = stringResource(R.string.capability_workspace_import), enabled = !busy,
-                    onClick = { importLauncher.launch(arrayOf("*/*")) })
-                PrefDivider()
+                ArrowPreference(
+                    title = stringResource(R.string.capability_workspace_import),
+                    enabled = !busy,
+                    startAction = { PreferenceIcon(Icons.Rounded.DriveFolderUpload, enabled = !busy) },
+                    onClick = { importLauncher.launch(arrayOf("*/*")) },
+                )
+
                 ArrowPreference(
                     title = stringResource(R.string.capability_workspace_public),
+                    startAction = { PreferenceIcon(Icons.Rounded.FolderOpen) },
                     summary = if (publicAccess) stringResource(R.string.capability_workspace_public_granted) else stringResource(R.string.capability_workspace_public_summary),
                     onClick = {
                         try {
@@ -117,27 +134,52 @@ internal fun WorkspaceScreen(onBack: () -> Unit) {
             }
         }
         message?.let { text -> item(key = "message") { BasicComponent(title = text) } }
-        item(key = "path") { SmallTitle(if (path.isBlank()) stringResource(R.string.capability_workspace_export) else path) }
+        item(key = "path") {
+            SmallTitle(if (path.isBlank()) stringResource(R.string.capability_workspace_files) else path)
+        }
         if (path.isNotBlank()) {
             item(key = "parent") {
-                ArrowPreference(title = stringResource(R.string.capability_workspace_parent), onClick = { path = path.substringBeforeLast('/', "") })
+                Card(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+                    ArrowPreference(
+                        title = stringResource(R.string.capability_workspace_parent),
+                        startAction = { PreferenceIcon(Icons.Rounded.FolderOpen) },
+                        onClick = { path = path.substringBeforeLast('/', "") },
+                    )
+                }
             }
         }
         if (entries.isEmpty()) {
-            item(key = "empty") { BasicComponent(title = stringResource(R.string.capability_workspace_empty)) }
+            item(key = "empty") {
+                ListEmptyState(
+                    title = stringResource(R.string.capability_workspace_empty),
+                    summary = stringResource(R.string.capability_workspace_empty_summary),
+                )
+            }
         }
         items(entries, key = { it.path }) { entry ->
-            ArrowPreference(
-                title = entry.name,
-                summary = if (entry.directory) stringResource(R.string.capability_workspace_directory) else Formatter.formatShortFileSize(context, entry.size),
-                enabled = !busy,
-                onClick = {
-                    if (entry.directory) path = entry.path else {
-                        pendingExport = entry.path
-                        exportLauncher.launch(entry.name)
-                    }
-                },
-            )
+            Card(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+                ArrowPreference(
+                    title = entry.name,
+                    summary = if (entry.directory) stringResource(R.string.capability_workspace_directory)
+                        else stringResource(
+                            R.string.capability_workspace_file_export,
+                            Formatter.formatShortFileSize(context, entry.size),
+                        ),
+                    startAction = {
+                        PreferenceIcon(
+                            icon = if (entry.directory) Icons.Rounded.Folder else Icons.AutoMirrored.Rounded.InsertDriveFile,
+                            enabled = !busy,
+                        )
+                    },
+                    enabled = !busy,
+                    onClick = {
+                        if (entry.directory) path = entry.path else {
+                            pendingExport = entry.path
+                            exportLauncher.launch(entry.name)
+                        }
+                    },
+                )
+            }
         }
     }
 }

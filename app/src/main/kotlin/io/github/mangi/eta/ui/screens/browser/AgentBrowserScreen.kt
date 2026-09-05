@@ -1,6 +1,4 @@
 package io.github.mangi.eta.ui.screens.browser
-import io.github.mangi.eta.R
-import androidx.compose.ui.res.stringResource
 
 import android.content.Intent
 import android.view.ViewGroup
@@ -32,6 +30,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.AdsClick
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.GppMaybe
+import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -47,13 +56,14 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
@@ -64,7 +74,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.net.toUri
-import com.composables.icons.lucide.R as LucideR
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.browser.AgentBrowserSession
 import io.github.mangi.eta.agent.browser.BrowserSessionSnapshot
 import io.github.mangi.eta.ui.components.MiuixDialogActions
@@ -170,13 +180,11 @@ internal fun AgentBrowserScreen(
             keyboardActions = KeyboardActions(onGo = { navigate() }),
             leadingIcon = {
                 Icon(
-                    painter = painterResource(
-                        if (snapshot.url.startsWith("https://")) {
-                            LucideR.drawable.lucide_ic_lock
-                        } else {
-                            LucideR.drawable.lucide_ic_globe
-                        }
-                    ),
+                    imageVector = if (snapshot.url.startsWith("https://")) {
+                        Icons.Rounded.Lock
+                    } else {
+                        Icons.Rounded.Language
+                    },
                     contentDescription = null,
                     modifier = Modifier.padding(start = 12.dp).size(18.dp),
                     tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
@@ -191,7 +199,7 @@ internal fun AgentBrowserScreen(
                         .alpha(if (address.isNotBlank() && !actionPending) 1f else 0.34f),
                 ) {
                     Icon(
-                        painter = painterResource(LucideR.drawable.lucide_ic_arrow_right),
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
                         contentDescription = stringResource(R.string.ui_access_7f5641),
                         modifier = Modifier.size(19.dp),
                         tint = MiuixTheme.colorScheme.onSurface,
@@ -337,22 +345,22 @@ private fun BrowserToolbar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         BrowserControlButton(
-            icon = LucideR.drawable.lucide_ic_arrow_left,
+            icon = Icons.AutoMirrored.Rounded.ArrowBack,
             description = stringResource(R.string.browser_back),
             enabled = snapshot.canGoBack && !actionPending,
             onClick = onBack,
         )
         BrowserControlButton(
-            icon = LucideR.drawable.lucide_ic_arrow_right,
+            icon = Icons.AutoMirrored.Rounded.ArrowForward,
             description = stringResource(R.string.browser_forward),
             enabled = snapshot.canGoForward && !actionPending,
             onClick = onForward,
         )
         BrowserControlButton(
             icon = if (snapshot.isLoading) {
-                LucideR.drawable.lucide_ic_x
+                Icons.Rounded.Close
             } else {
-                LucideR.drawable.lucide_ic_refresh_cw
+                Icons.Rounded.Refresh
             },
             description = if (snapshot.isLoading) stringResource(R.string.browser_stop_loading) else stringResource(R.string.browser_refresh),
             enabled = snapshot.available && (snapshot.isLoading || !actionPending),
@@ -382,13 +390,13 @@ private fun BrowserToolbar(
         }
 
         BrowserControlButton(
-            icon = LucideR.drawable.lucide_ic_external_link,
+            icon = Icons.AutoMirrored.Rounded.OpenInNew,
             description = stringResource(R.string.browser_open_external),
             enabled = snapshot.available,
             onClick = onOpenExternal,
         )
         BrowserControlButton(
-            icon = LucideR.drawable.lucide_ic_trash_2,
+            icon = Icons.Rounded.Delete,
             description = stringResource(R.string.browser_reset_session),
             enabled = snapshot.available && !actionPending,
             onClick = onReset,
@@ -398,7 +406,7 @@ private fun BrowserToolbar(
 
 @Composable
 private fun BrowserControlButton(
-    icon: Int,
+    icon: ImageVector,
     description: String,
     enabled: Boolean,
     onClick: () -> Unit,
@@ -414,7 +422,7 @@ private fun BrowserControlButton(
             },
     ) {
         Icon(
-            painter = painterResource(icon),
+            imageVector = icon,
             contentDescription = null,
             modifier = Modifier.size(18.dp),
             tint = MiuixTheme.colorScheme.onSurface,
@@ -500,9 +508,9 @@ private fun ColumnScope.BrowserStatusBanner(snapshot: BrowserSessionSnapshot) {
         else -> MiuixTheme.colorScheme.primary
     }
     val icon = if (snapshot.error != null) {
-        LucideR.drawable.lucide_ic_shield_alert
+        Icons.Rounded.GppMaybe
     } else {
-        LucideR.drawable.lucide_ic_mouse_pointer_click
+        Icons.Rounded.AdsClick
     }
 
     AnimatedVisibility(
@@ -522,7 +530,7 @@ private fun ColumnScope.BrowserStatusBanner(snapshot: BrowserSessionSnapshot) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    painter = painterResource(icon),
+                    imageVector = icon,
                     contentDescription = null,
                     modifier = Modifier.size(17.dp),
                     tint = color,
@@ -541,7 +549,7 @@ private fun ColumnScope.BrowserStatusBanner(snapshot: BrowserSessionSnapshot) {
 
 @Composable
 private fun BrowserOverlayIcon(
-    icon: Int,
+    icon: ImageVector,
     tint: Color,
     modifier: Modifier = Modifier,
 ) {
@@ -555,7 +563,7 @@ private fun BrowserOverlayIcon(
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            painter = painterResource(icon),
+            imageVector = icon,
             contentDescription = null,
             modifier = Modifier.size(28.dp),
             tint = tint,
@@ -587,7 +595,7 @@ private fun BrowserEmptyState(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.Center,
     ) {
         BrowserOverlayIcon(
-            icon = LucideR.drawable.lucide_ic_globe,
+            icon = Icons.Rounded.Language,
             tint = MiuixTheme.colorScheme.primary,
         )
         Spacer(modifier = Modifier.height(16.dp))
@@ -649,7 +657,7 @@ private fun BrowserFailedState(
         verticalArrangement = Arrangement.Center,
     ) {
         BrowserOverlayIcon(
-            icon = LucideR.drawable.lucide_ic_shield_alert,
+            icon = Icons.Rounded.GppMaybe,
             tint = StatusError,
         )
         Spacer(modifier = Modifier.height(16.dp))

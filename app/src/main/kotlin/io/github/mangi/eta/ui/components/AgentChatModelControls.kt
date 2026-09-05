@@ -1,6 +1,4 @@
 package io.github.mangi.eta.ui.components
-import io.github.mangi.eta.R
-import androidx.compose.ui.res.stringResource
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -15,6 +13,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -28,15 +30,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.composables.icons.lucide.R as LucideR
+import io.github.mangi.eta.R
 import io.github.mangi.eta.ui.model.AgentContextUsageUi
 import io.github.mangi.eta.ui.model.AgentModelOptionUi
 import io.github.mangi.eta.ui.model.AgentModelPickerUiState
@@ -108,7 +111,6 @@ internal fun AgentModelPickerButton(
             show = showPopup && popupAnchorTopPx > 0,
             popupPositionProvider = popupPositionProvider,
             alignment = PopupPositionProvider.Align.TopEnd,
-            enableWindowDim = false,
             onDismissRequest = { showPopup = false },
             maxHeight = popupMaxHeight,
             minWidth = 236.dp,
@@ -193,7 +195,7 @@ private fun ModelProviderGroupHeader(
         )
         Spacer(modifier = Modifier.width(8.dp))
         Icon(
-            painter = painterResource(LucideR.drawable.lucide_ic_chevron_down),
+            imageVector = Icons.Rounded.ExpandMore,
             contentDescription = if (expanded) {
                 stringResource(R.string.model_collapse_provider, name)
             } else {
@@ -240,7 +242,7 @@ private fun ModelPickerRow(
         if (selected) {
             Spacer(modifier = Modifier.width(8.dp))
             Icon(
-                painter = painterResource(LucideR.drawable.lucide_ic_check),
+                imageVector = Icons.Rounded.Check,
                 contentDescription = stringResource(R.string.ui_current_model_a0af8f),
                 modifier = Modifier.size(18.dp),
                 tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
@@ -331,7 +333,7 @@ private fun ModelBrandMark(
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                painter = painterResource(LucideR.drawable.lucide_ic_server),
+                imageVector = Icons.Rounded.Dns,
                 contentDescription = null,
                 modifier = Modifier.size(size * 0.56f),
                 tint = MiuixTheme.colorScheme.primary,

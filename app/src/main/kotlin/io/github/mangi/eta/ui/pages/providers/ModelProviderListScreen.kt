@@ -1,15 +1,15 @@
 package io.github.mangi.eta.ui.pages.providers
-import io.github.mangi.eta.R
-import androidx.compose.ui.res.stringResource
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -21,12 +21,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.composables.icons.lucide.R as LucideR
 import io.github.mangi.eta.EtaApp
+import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.ProviderSetting
 import io.github.mangi.eta.data.model.ProviderSourceTypes
 import io.github.mangi.eta.data.model.typeLabel
@@ -96,7 +96,7 @@ internal fun ModelProviderListScreen(
                     },
                     onClick = { onNavigate(AppRoute.ModelProviderNew(NewProviderType.OpenAiCompatible)) },
                 )
-                ProviderDivider()
+
                 ArrowPreference(
                     title = stringResource(R.string.ui_new_anthropic_db6098),
                     summary = stringResource(R.string.ui_support_anthropic_claude_official_or_compatible_api_de3f80),
@@ -126,10 +126,7 @@ internal fun ModelProviderListScreen(
                         )
                     }
                 } else {
-                    filteredProviders.forEachIndexed { index, provider ->
-                        if (index > 0) {
-                            ProviderDivider()
-                        }
+                    filteredProviders.forEach { provider ->
                         ProviderListItem(
                             provider = provider,
                             isSelected = provider.id == selectedProviderId,
@@ -215,28 +212,28 @@ private fun ProviderListItem(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 2.dp),
             )
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            Text(
+                text = listOfNotNull(
+                    provider.typeLabel,
+                    pluralStringResource(R.plurals.provider_models_count, provider.models.size, provider.models.size),
+                    stringResource(R.string.ui_built_in_09ceea).takeIf { provider.isBuiltIn },
+                ).joinToString(" · "),
+                style = MiuixTheme.textStyles.footnote1,
+                color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                 modifier = Modifier.padding(top = 6.dp),
-            ) {
-                TagChip(text = provider.typeLabel)
-                TagChip(text = pluralStringResource(R.plurals.provider_models_count, provider.models.size, provider.models.size))
-                if (provider.isBuiltIn) {
-                    TagChip(text = stringResource(R.string.ui_built_in_09ceea))
-                }
-                if (!provider.isEnabled) {
-                    TagChip(text = stringResource(R.string.ui_disabled_0fe5a9), tone = TagChipTone.Warning)
-                }
-                if (isSelected) {
-                    TagChip(text = stringResource(R.string.ui_current_25e74d), tone = TagChipTone.Emphasized)
-                }
+            )
+            if (!provider.isEnabled) {
+                Text(
+                    text = stringResource(R.string.ui_disabled_0fe5a9),
+                    style = MiuixTheme.textStyles.footnote1,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
             }
         }
         IconButton(onClick = onSelect) {
             Icon(
-                painter = painterResource(
-                    if (isSelected) LucideR.drawable.lucide_ic_check else LucideR.drawable.lucide_ic_circle,
-                ),
+                imageVector = if (isSelected) Icons.Rounded.Check else Icons.Rounded.RadioButtonUnchecked,
                 contentDescription = if (isSelected) {
                     stringResource(R.string.provider_selected)
                 } else {

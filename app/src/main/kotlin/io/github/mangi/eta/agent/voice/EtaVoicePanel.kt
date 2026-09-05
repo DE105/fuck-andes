@@ -41,6 +41,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.CancelPresentation
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.DesktopWindows
+import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -69,7 +75,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
@@ -77,7 +82,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.composables.icons.lucide.R as LucideR
 import io.github.mangi.eta.R
 import io.github.mangi.eta.ui.components.AgentConversationMessages
 import io.github.mangi.eta.ui.components.rememberDataUrlBitmap
@@ -86,6 +90,8 @@ import io.github.mangi.eta.ui.model.AgentMessageUi
 import io.github.mangi.eta.ui.model.ThinkingMessageUi
 import io.github.mangi.eta.ui.model.ToolActivityMessageUi
 import io.github.mangi.eta.ui.model.UserMessageUi
+import kotlin.math.ceil
+import kotlin.math.max
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.anim.folmeSpring
@@ -97,8 +103,6 @@ import top.yukonga.miuix.kmp.squircle.squircleBackground
 import top.yukonga.miuix.kmp.squircle.squircleClip
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import kotlin.math.ceil
-import kotlin.math.max
 
 internal enum class EtaVoicePhase {
     READY,
@@ -672,13 +676,13 @@ private fun ScreenContextAttachment(
                             strokeWidth = 2.dp,
                         )
                         EtaScreenContextPhase.AVAILABLE -> Icon(
-                            painter = painterResource(LucideR.drawable.lucide_ic_monitor),
+                            imageVector = Icons.Rounded.DesktopWindows,
                             contentDescription = null,
                             modifier = Modifier.size(16.dp),
                             tint = if (available) colors.inputPrimary else colors.inputTertiary,
                         )
                         EtaScreenContextPhase.UNAVAILABLE -> Icon(
-                            painter = painterResource(LucideR.drawable.lucide_ic_monitor_x),
+                            imageVector = Icons.Rounded.CancelPresentation,
                             contentDescription = null,
                             modifier = Modifier.size(16.dp),
                             tint = colors.inputTertiary,
@@ -752,7 +756,7 @@ private fun SelectedScreenContext(
             cornerRadius = 15.dp,
         ) {
             Icon(
-                painter = painterResource(LucideR.drawable.lucide_ic_x),
+                imageVector = Icons.Rounded.Close,
                 contentDescription = stringResource(R.string.voice_screen_remove),
                 modifier = Modifier.size(14.dp),
                 tint = if (enabled) colors.inputSecondary else colors.inputTertiary,
@@ -844,7 +848,7 @@ private fun AssistantInputBar(
                 backgroundColor = MiuixTheme.colorScheme.error,
             ) {
                 Icon(
-                    painter = painterResource(LucideR.drawable.lucide_ic_square),
+                    imageVector = Icons.Rounded.Stop,
                     contentDescription = stringResource(R.string.action_stop),
                     modifier = Modifier.size(15.dp),
                     tint = Color.White,
@@ -864,7 +868,7 @@ private fun AssistantInputBar(
                 },
             ) {
                 Icon(
-                    painter = painterResource(LucideR.drawable.lucide_ic_arrow_right),
+                    imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
                     contentDescription = stringResource(R.string.voice_send),
                     modifier = Modifier.size(17.dp),
                     tint = if (canSubmit) Color.White else colors.inputSecondary,

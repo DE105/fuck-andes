@@ -1,6 +1,4 @@
 package io.github.mangi.eta.ui.components
-import io.github.mangi.eta.R
-import androidx.compose.ui.res.stringResource
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -38,6 +36,11 @@ import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Flare
+import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -59,18 +62,19 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.composables.icons.lucide.R as LucideR
+import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.ReasoningEffort
 import io.github.mangi.eta.ui.model.AgentContextUsageUi
 import io.github.mangi.eta.ui.model.AgentModelPickerUiState
 import io.github.mangi.eta.ui.model.PendingFileReferenceUi
 import io.github.mangi.eta.ui.model.PendingImageUi
+import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -83,7 +87,6 @@ import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.LocalDismissState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowListPopup
-import kotlin.math.roundToInt
 
 private val SendButtonVisualSize = ChatInputActionIconSize
 private val SendIconSize = 16.dp
@@ -273,7 +276,7 @@ internal fun AgentChatInputBar(
                                 minHeight = ChatInputActionSize,
                             ) {
                                 Icon(
-                                    painter = painterResource(LucideR.drawable.lucide_ic_x),
+                                    imageVector = Icons.Rounded.Close,
                                     contentDescription = stringResource(R.string.ui_cancel_edit_c698df),
                                     modifier = Modifier.size(ChatInputActionIconSize),
                                     tint = MiuixTheme.colorScheme.onSurface,
@@ -364,13 +367,11 @@ internal fun AgentChatInputBar(
                                     label = "send_stop_icon",
                                 ) { streaming ->
                                     Icon(
-                                        painter = painterResource(
-                                            if (streaming) {
-                                                LucideR.drawable.lucide_ic_square
-                                            } else {
-                                                LucideR.drawable.lucide_ic_arrow_up
-                                            }
-                                        ),
+                                        imageVector = if (streaming) {
+                                            Icons.Rounded.Stop
+                                        } else {
+                                            Icons.Rounded.ArrowUpward
+                                        },
                                         contentDescription = if (streaming) stringResource(R.string.chat_stop) else stringResource(R.string.chat_send),
                                         modifier = Modifier.size(
                                             if (streaming) StopIconSize else SendIconSize
@@ -428,7 +429,7 @@ private fun ThinkingEffortChip(
             minHeight = ChatInputActionSize,
         ) {
             Icon(
-                painter = painterResource(LucideR.drawable.lucide_ic_atom),
+                imageVector = Icons.Rounded.Flare,
                 contentDescription = stringResource(R.string.chat_reasoning_effort, effort.displayName),
                 modifier = Modifier.size(ThinkingIconSize),
                 tint = contentColor,
@@ -438,7 +439,6 @@ private fun ThinkingEffortChip(
             show = showPopup && menuEnabled && popupAnchorTopPx > 0,
             popupPositionProvider = popupPositionProvider,
             alignment = PopupPositionProvider.Align.TopStart,
-            enableWindowDim = false,
             onDismissRequest = { showPopup = false },
             maxHeight = popupMaxHeight,
         ) {
@@ -503,7 +503,7 @@ private fun PendingImageStrip(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        painter = painterResource(LucideR.drawable.lucide_ic_x),
+                        imageVector = Icons.Rounded.Close,
                         contentDescription = stringResource(R.string.ui_remove_image_089db3),
                         modifier = Modifier.size(11.dp),
                         tint = Color.White,

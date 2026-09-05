@@ -1,6 +1,4 @@
 package io.github.mangi.eta.ui.screens.terminal
-import io.github.mangi.eta.R
-import androidx.compose.ui.res.stringResource
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -17,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -26,8 +23,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.Insights
+import androidx.compose.material.icons.rounded.Layers
+import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -36,14 +36,13 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -56,16 +55,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.composables.icons.lucide.R as LucideR
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.terminal.TerminalEnvironment
 import io.github.mangi.eta.agent.terminal.isLinux
-import io.github.mangi.eta.ui.app.DaemonTaskUi
 import io.github.mangi.eta.ui.app.TerminalBlockUi
 import io.github.mangi.eta.ui.app.UserTerminalStore
 import io.github.mangi.eta.ui.app.UserTerminalUiState
 import io.github.mangi.eta.ui.components.ansiPlainText
 import io.github.mangi.eta.ui.components.ansiToAnnotatedString
-import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
@@ -76,7 +73,6 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.window.WindowListPopup
 
 /**
@@ -340,7 +336,6 @@ private fun BlockMenu(
     WindowListPopup(
         show = show,
         alignment = PopupPositionProvider.Align.Start,
-        enableWindowDim = false,
         onDismissRequest = onDismiss,
     ) {
         ListPopupColumn {
@@ -430,7 +425,7 @@ private fun StatusBar(
         )
         IconButton(onClick = onOpenSessions) {
             Icon(
-                painter = painterResource(LucideR.drawable.lucide_ic_layers),
+                imageVector = Icons.Rounded.Layers,
                 contentDescription = stringResource(R.string.terminal_sessions),
                 modifier = Modifier.size(18.dp),
                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
@@ -438,7 +433,7 @@ private fun StatusBar(
         }
         IconButton(onClick = onOpenTasks) {
             Icon(
-                painter = painterResource(LucideR.drawable.lucide_ic_activity),
+                imageVector = Icons.Rounded.Insights,
                 contentDescription = stringResource(R.string.terminal_daemon_tasks),
                 modifier = Modifier.size(18.dp),
                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
@@ -447,7 +442,7 @@ private fun StatusBar(
         if (onOpenConsole != null) {
             IconButton(onClick = onOpenConsole) {
                 Icon(
-                    painter = painterResource(LucideR.drawable.lucide_ic_square_terminal),
+                    imageVector = Icons.Rounded.Terminal,
                     contentDescription = stringResource(R.string.terminal_console_mode),
                     modifier = Modifier.size(18.dp),
                     tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
@@ -514,7 +509,7 @@ private fun InputRow(
                     .alpha(if (canSend) 1f else 0.34f),
             ) {
                 Icon(
-                    painter = painterResource(LucideR.drawable.lucide_ic_arrow_up),
+                    imageVector = Icons.Rounded.ArrowUpward,
                     contentDescription = stringResource(R.string.terminal_send),
                     modifier = Modifier.size(19.dp),
                     tint = MiuixTheme.colorScheme.onSurface,

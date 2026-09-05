@@ -1047,7 +1047,6 @@
   <string name="skills_replace">替换</string>
   <string name="skills_delete_summary">删除“%1$s”后需要重新安装才能恢复。</string>
   <string name="skills_no_description">无描述</string>
-  <string name="skills_delete_named">删除 %1$s</string>
   <string name="browser_no_external_app">没有应用可以打开当前网页</string>
   <string name="browser_reset">重置</string>
   <string name="browser_back">后退</string>

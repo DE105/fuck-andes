@@ -1062,7 +1062,6 @@
   <string name="skills_replace">Replace</string>
   <string name="skills_delete_summary">After deleting “%1$s”, you will need to reinstall it to restore it.</string>
   <string name="skills_no_description">No description</string>
-  <string name="skills_delete_named">Delete %1$s</string>
   <string name="browser_no_external_app">No app can open this webpage</string>
   <string name="browser_reset">Reset</string>
   <string name="browser_back">Back</string>

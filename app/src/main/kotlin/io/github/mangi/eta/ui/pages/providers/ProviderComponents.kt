@@ -3,7 +3,6 @@ package io.github.mangi.eta.ui.pages.providers
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,24 +10,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material.icons.rounded.Language
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import com.composables.icons.lucide.R as LucideR
 import io.github.mangi.eta.data.model.CustomProviderSetting
 import io.github.mangi.eta.data.model.ProviderSetting
-import io.github.mangi.eta.ui.components.IconTintBlue
-import io.github.mangi.eta.ui.components.IconTintGreen
-import io.github.mangi.eta.ui.components.StatusWarning
+import io.github.mangi.eta.ui.components.PreferenceIcon
 import io.github.mangi.eta.ui.components.providerBrandLogoRes as sharedProviderBrandLogoRes
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.HorizontalDivider
-import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -47,29 +43,6 @@ internal fun ProviderSection(
         Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
             content()
         }
-    }
-}
-
-/** ColorOS 风格圆形彩色图标（32dp 圆形底 + 纯白图标），与设置页视觉一致。 */
-@Composable
-internal fun ProviderRoundIcon(
-    @DrawableRes icon: Int,
-    tint: Color,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier = modifier
-            .padding(end = 12.dp)
-            .size(32.dp)
-            .background(tint, CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            painter = painterResource(icon),
-            contentDescription = null,
-            modifier = Modifier.size(18.dp),
-            tint = Color.White,
-        )
     }
 }
 
@@ -93,8 +66,8 @@ private fun ProviderBrandImage(
         contentDescription = null,
         contentScale = ContentScale.Fit,
         modifier = modifier
-            .padding(end = 12.dp)
-            .size(32.dp)
+            .padding(end = 6.dp)
+            .size(24.dp)
             .clip(CircleShape),
     )
 }
@@ -120,26 +93,18 @@ internal fun ProviderIcon(
     }
 
     when (provider) {
-        is CustomProviderSetting -> ProviderRoundIcon(
-            icon = LucideR.drawable.lucide_ic_server,
-            tint = IconTintGreen,
+        is CustomProviderSetting -> PreferenceIcon(
+            icon = Icons.Rounded.Dns,
             modifier = modifier,
         )
-        else -> ProviderRoundIcon(
-            icon = LucideR.drawable.lucide_ic_globe,
-            tint = IconTintBlue,
+        else -> PreferenceIcon(
+            icon = Icons.Rounded.Language,
             modifier = modifier,
         )
     }
 }
 
-/** 分隔线缩进对齐圆形图标之后的文字起始位置：insideMargin(16) + 图标(32) + 间距(12) = 60dp。 */
-@Composable
-internal fun ProviderDivider() {
-    HorizontalDivider(modifier = Modifier.padding(start = 60.dp))
-}
-
-internal enum class TagChipTone { Normal, Emphasized, Warning }
+internal enum class TagChipTone { Normal, Emphasized }
 
 /** 小胶囊标签，用于能力标签与状态标记。 */
 @Composable
@@ -157,10 +122,6 @@ internal fun TagChip(
         TagChipTone.Emphasized -> {
             background = MiuixTheme.colorScheme.primaryContainer
             foreground = MiuixTheme.colorScheme.onPrimaryContainer
-        }
-        TagChipTone.Warning -> {
-            background = StatusWarning.copy(alpha = 0.15f)
-            foreground = StatusWarning
         }
     }
     Text(

@@ -1,6 +1,4 @@
 package io.github.mangi.eta.ui.components
-import io.github.mangi.eta.R
-import androidx.compose.ui.res.stringResource
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,21 +8,25 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.github.mangi.eta.R
 import io.github.mangi.eta.ui.model.ActiveRunSummaryUi
 import io.github.mangi.eta.ui.model.RunStatusUi
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import androidx.compose.ui.res.painterResource
-import com.composables.icons.lucide.R as LucideR
-import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -87,19 +89,19 @@ private fun StatusIndicator(status: RunStatusUi) {
             color = MiuixTheme.colorScheme.primary,
         )
         RunStatusUi.Success -> Icon(
-            painter = painterResource(LucideR.drawable.lucide_ic_check),
+            imageVector = Icons.Rounded.Check,
             contentDescription = null,
             modifier = Modifier.size(18.dp),
             tint = MiuixTheme.colorScheme.primary,
         )
         RunStatusUi.Failed -> Icon(
-            painter = painterResource(LucideR.drawable.lucide_ic_x),
+            imageVector = Icons.Rounded.Close,
             contentDescription = null,
             modifier = Modifier.size(18.dp),
             tint = MiuixTheme.colorScheme.primary,
         )
         RunStatusUi.Cancelled -> Icon(
-            painter = painterResource(LucideR.drawable.lucide_ic_ellipsis),
+            imageVector = Icons.Rounded.MoreHoriz,
             contentDescription = null,
             modifier = Modifier.size(18.dp),
             tint = MiuixTheme.colorScheme.onSurfaceVariantActions,

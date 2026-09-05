@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -19,12 +22,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import com.composables.icons.lucide.R as LucideR
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.mcp.McpServerManager
 import io.github.mangi.eta.agent.mcp.validateMcpEndpoint
@@ -33,6 +34,7 @@ import io.github.mangi.eta.data.model.McpProtocolMode
 import io.github.mangi.eta.data.model.McpServerSetting
 import io.github.mangi.eta.data.model.McpToolDefinition
 import io.github.mangi.eta.data.repository.McpServerRepository
+import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.MiuixDialogActions
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
 import io.github.mangi.eta.ui.navigation.AppRoute
@@ -41,11 +43,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
@@ -74,7 +76,7 @@ internal fun McpServersScreen(
         actions = {
             IconButton(onClick = { showAdd = true }) {
                 Icon(
-                    painter = painterResource(LucideR.drawable.lucide_ic_plus),
+                    imageVector = Icons.Rounded.Add,
                     contentDescription = stringResource(R.string.mcp_add_server),
                 )
             }
@@ -84,14 +86,18 @@ internal fun McpServersScreen(
             SmallTitle(stringResource(R.string.mcp_configured_servers, servers.size))
             Card(modifier = Modifier.padding(horizontal = 12.dp)) {
                 if (servers.isEmpty()) {
-                    BasicComponent(
+                    ListEmptyState(
                         title = stringResource(R.string.mcp_empty_title),
                         summary = stringResource(R.string.mcp_empty_summary),
-                        onClick = { showAdd = true },
+                        action = {
+                            TextButton(
+                                text = stringResource(R.string.mcp_add_server),
+                                onClick = { showAdd = true },
+                            )
+                        },
                     )
                 } else {
-                    servers.forEachIndexed { index, server ->
-                        if (index > 0) HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
+                    servers.forEach { server ->
                         ArrowPreference(
                             title = server.name,
                             summary = stringResource(
@@ -251,7 +257,7 @@ internal fun McpServerDetailScreen(
                 },
             ) {
                 Icon(
-                    painter = painterResource(LucideR.drawable.lucide_ic_refresh_cw),
+                    imageVector = Icons.Rounded.Refresh,
                     contentDescription = stringResource(R.string.mcp_refresh_tools),
                 )
             }
@@ -276,7 +282,7 @@ internal fun McpServerDetailScreen(
                         }
                     },
                 )
-                HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
+
                 ArrowPreference(
                     title = stringResource(R.string.mcp_update_token),
                     summary = stringResource(
@@ -294,13 +300,12 @@ internal fun McpServerDetailScreen(
             SmallTitle(stringResource(R.string.mcp_tools_count, server.tools.size))
             Card(modifier = Modifier.padding(horizontal = 12.dp)) {
                 if (server.tools.isEmpty()) {
-                    BasicComponent(
+                    ListEmptyState(
                         title = stringResource(R.string.mcp_no_tools),
                         summary = stringResource(R.string.mcp_refresh_tools_hint),
                     )
                 } else {
-                    server.tools.forEachIndexed { index, tool ->
-                        if (index > 0) HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
+                    server.tools.forEach { tool ->
                         val checked = tool.name in server.enabledToolNames
                         SwitchPreference(
                             title = tool.title.ifBlank { tool.name },

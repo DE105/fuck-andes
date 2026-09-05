@@ -1,6 +1,4 @@
 package io.github.mangi.eta.ui.screens.terminal
-import io.github.mangi.eta.R
-import androidx.compose.ui.res.stringResource
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,6 +21,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Insights
+import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -39,6 +40,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextMeasurer
@@ -52,15 +54,13 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import com.composables.icons.lucide.R as LucideR
-import io.github.mangi.eta.agent.terminal.SgrStyle
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.terminal.TerminalEnvironment
 import io.github.mangi.eta.agent.terminal.TerminalScreenBuffer
 import io.github.mangi.eta.ui.app.ConsoleStore
 import io.github.mangi.eta.ui.app.ConsoleUiState
 import io.github.mangi.eta.ui.app.UserTerminalStore
 import io.github.mangi.eta.ui.components.toSpanStyle
-import androidx.compose.ui.res.painterResource
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
@@ -228,7 +228,7 @@ private fun ConsoleStatusBar(
         ) {
             IconButton(onClick = onOpenSessions) {
                 Icon(
-                    painter = painterResource(LucideR.drawable.lucide_ic_layers),
+                    imageVector = Icons.Rounded.Layers,
                     contentDescription = stringResource(R.string.terminal_sessions),
                     modifier = Modifier.size(18.dp),
                     tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
@@ -236,7 +236,7 @@ private fun ConsoleStatusBar(
             }
             IconButton(onClick = onOpenTasks) {
                 Icon(
-                    painter = painterResource(LucideR.drawable.lucide_ic_activity),
+                    imageVector = Icons.Rounded.Insights,
                     contentDescription = stringResource(R.string.terminal_daemon_tasks),
                     modifier = Modifier.size(18.dp),
                     tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,

@@ -1,8 +1,6 @@
 @file:android.annotation.SuppressLint("LocalContextGetResourceValueCall")
 
 package io.github.mangi.eta.ui.pages.providers
-import io.github.mangi.eta.R
-import androidx.compose.ui.res.stringResource
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -13,8 +11,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,7 +24,16 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.CloudDownload
+import androidx.compose.material.icons.rounded.RadioButtonUnchecked
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
@@ -41,8 +46,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -52,8 +57,8 @@ import androidx.compose.ui.unit.dp
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
-import com.composables.icons.lucide.R as LucideR
 import io.github.mangi.eta.EtaApp
+import io.github.mangi.eta.R
 import io.github.mangi.eta.data.model.Model
 import io.github.mangi.eta.data.model.ModelReasoningCapabilities
 import io.github.mangi.eta.data.model.ProviderSetting
@@ -62,6 +67,7 @@ import io.github.mangi.eta.data.repository.ModelRepository
 import io.github.mangi.eta.data.repository.RemoteModelFetcher
 import io.github.mangi.eta.data.repository.RuntimeConfigRepository
 import io.github.mangi.eta.ui.components.MiuixDialogActions
+import io.github.mangi.eta.ui.components.PreferenceIcon
 import io.github.mangi.eta.ui.components.StatusError
 import io.github.mangi.eta.ui.components.StatusSuccess
 import io.github.mangi.eta.ui.model.formatCompactTokenCount
@@ -225,9 +231,9 @@ internal fun ProviderModelsTab(
                         summary = stringResource(R.string.provider_models_endpoint_summary, provider.baseUrl),
                         enabled = !isFetching && !isMutatingModel,
                         startAction = {
-                            ProviderRoundIcon(
-                                icon = LucideR.drawable.lucide_ic_cloud_download,
-                                tint = MiuixTheme.colorScheme.primary,
+                            PreferenceIcon(
+                                icon = Icons.Rounded.CloudDownload,
+                                enabled = !isFetching && !isMutatingModel,
                             )
                         },
                         onClick = {
@@ -276,15 +282,15 @@ internal fun ProviderModelsTab(
                             }
                         },
                     )
-                    ProviderDivider()
+
                     ArrowPreference(
                         title = stringResource(R.string.ui_add_custom_model_a5ddc0),
                         summary = stringResource(R.string.ui_manually_fill_in_the_display_name_and_model_id_077a7b),
                         enabled = !isFetching && !isMutatingModel,
                         startAction = {
-                            ProviderRoundIcon(
-                                icon = LucideR.drawable.lucide_ic_plus,
-                                tint = MiuixTheme.colorScheme.primary,
+                            PreferenceIcon(
+                                icon = Icons.Rounded.Add,
+                                enabled = !isFetching && !isMutatingModel,
                             )
                         },
                         onClick = {
@@ -594,9 +600,6 @@ private fun ModelListGroupItem(
                 .then(surfaceModifier),
         ) {
             content()
-            if (!isLast) {
-                HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
-            }
         }
     }
 }
@@ -628,7 +631,7 @@ private fun ModelSelectionBar(
         ) {
             IconButton(onClick = onExit, enabled = enabled) {
                 Icon(
-                    painter = painterResource(LucideR.drawable.lucide_ic_x),
+                    imageVector = Icons.Rounded.Close,
                     contentDescription = stringResource(R.string.ui_exit_multiple_selection_c194fd),
                     tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
                 )
@@ -725,17 +728,15 @@ private fun ModelListItem(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onEdit, enabled = enabled) {
                     Icon(
-                        painter = painterResource(LucideR.drawable.lucide_ic_sliders_horizontal),
+                        imageVector = Icons.Rounded.Tune,
                         contentDescription = stringResource(R.string.ui_edit_model_parameters_ba4864),
                         tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
                     )
                 }
                 IconButton(onClick = onSetCurrent, enabled = enabled) {
                     Icon(
-                        painter = painterResource(
-                            if (isSelected) LucideR.drawable.lucide_ic_check
-                            else LucideR.drawable.lucide_ic_circle
-                        ),
+                        imageVector = if (isSelected) Icons.Rounded.Check
+                            else Icons.Rounded.RadioButtonUnchecked,
                         contentDescription = if (isSelected) context.getString(R.string.page_current_model_a0af8f) else context.getString(R.string.page_set_as_current_model_183d7d),
                         tint = if (isSelected) {
                             MiuixTheme.colorScheme.primary

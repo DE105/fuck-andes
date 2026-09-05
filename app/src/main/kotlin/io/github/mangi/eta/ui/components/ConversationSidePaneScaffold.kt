@@ -1,16 +1,16 @@
 package io.github.mangi.eta.ui.components
 
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.AnchoredDraggableDefaults
 import androidx.compose.foundation.gestures.AnchoredDraggableState
 import androidx.compose.foundation.gestures.DraggableAnchors
 import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.animateTo
 import androidx.compose.foundation.gestures.anchoredDraggable
+import androidx.compose.foundation.gestures.animateTo
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -33,6 +33,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.AbsoluteRoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Extension
+import androidx.compose.material.icons.rounded.Inventory2
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Memory
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -48,13 +57,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.dropShadow
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.shadow.Shadow
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -66,12 +75,11 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
-import com.composables.icons.lucide.R as LucideR
 import io.github.mangi.eta.R
 import io.github.mangi.eta.ui.model.ConversationPaneUiState
 import io.github.mangi.eta.ui.model.ConversationSummaryUi
-import kotlinx.coroutines.flow.collectLatest
 import kotlin.math.roundToInt
+import kotlinx.coroutines.flow.collectLatest
 import top.yukonga.miuix.kmp.basic.DropdownDefaults
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.DropdownItem
@@ -446,7 +454,7 @@ private fun ConversationSectionHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            painter = painterResource(LucideR.drawable.lucide_ic_clock),
+            imageVector = Icons.Rounded.Schedule,
             contentDescription = null,
             modifier = Modifier.size(DrawerMetrics.SectionIconSize),
             tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
@@ -543,7 +551,7 @@ private fun ConversationTextRow(
                     text = renameText,
                     icon = { modifier ->
                         Icon(
-                            painter = painterResource(LucideR.drawable.lucide_ic_pencil),
+                            imageVector = Icons.Rounded.Edit,
                             contentDescription = null,
                             modifier = modifier.size(DrawerMetrics.ActionIconSize),
                         )
@@ -555,7 +563,7 @@ private fun ConversationTextRow(
                     text = deleteText,
                     icon = { modifier ->
                         Icon(
-                            painter = painterResource(LucideR.drawable.lucide_ic_trash_2),
+                            imageVector = Icons.Rounded.Delete,
                             contentDescription = null,
                             modifier = modifier.size(DrawerMetrics.ActionIconSize),
                             tint = MiuixTheme.colorScheme.error,
@@ -625,27 +633,27 @@ private fun PaneDock(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         DockButton(
-            icon = LucideR.drawable.lucide_ic_settings,
+            icon = Icons.Rounded.Settings,
             label = stringResource(R.string.route_settings),
             onClick = onOpenSettings,
         )
         DockButton(
-            icon = LucideR.drawable.lucide_ic_cpu,
+            icon = Icons.Rounded.Memory,
             label = stringResource(R.string.conversation_dock_models),
             onClick = onOpenModelProviders,
         )
         DockButton(
-            icon = LucideR.drawable.lucide_ic_package,
+            icon = Icons.Rounded.Inventory2,
             label = stringResource(R.string.route_tools),
             onClick = onOpenTools,
         )
         DockButton(
-            icon = LucideR.drawable.lucide_ic_puzzle,
+            icon = Icons.Rounded.Extension,
             label = stringResource(R.string.route_skills),
             onClick = onOpenSkills,
         )
         DockButton(
-            icon = LucideR.drawable.lucide_ic_lock,
+            icon = Icons.Rounded.Lock,
             label = stringResource(R.string.route_permissions),
             onClick = onOpenPermissions,
         )
@@ -654,7 +662,7 @@ private fun PaneDock(
 
 @Composable
 private fun DockButton(
-    icon: Int,
+    icon: ImageVector,
     label: String,
     onClick: () -> Unit,
 ) {
@@ -663,7 +671,7 @@ private fun DockButton(
         backgroundColor = MiuixTheme.colorScheme.surfaceContainer,
     ) {
         Icon(
-            painter = painterResource(icon),
+            imageVector = icon,
             contentDescription = label,
             modifier = Modifier.size(DrawerMetrics.ActionIconSize),
             tint = MiuixTheme.colorScheme.onSurface,

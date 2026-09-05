@@ -1,32 +1,35 @@
 package io.github.mangi.eta.ui.screens.permissions
-import io.github.mangi.eta.R
-import androidx.compose.ui.res.stringResource
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AccessibilityNew
+import androidx.compose.material.icons.rounded.AccountTree
+import androidx.compose.material.icons.rounded.Dashboard
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Key
+import androidx.compose.material.icons.rounded.Layers
+import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material.icons.rounded.Memory
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Shield
+import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.composables.icons.lucide.R as LucideR
-import io.github.mangi.eta.ui.components.ArrowItem
+import io.github.mangi.eta.R
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
-import io.github.mangi.eta.ui.components.PrefDivider
+import io.github.mangi.eta.ui.components.PreferenceIcon
 import io.github.mangi.eta.ui.components.color
 import io.github.mangi.eta.ui.components.label
 import io.github.mangi.eta.ui.model.PermissionHealthAction
 import io.github.mangi.eta.ui.model.PermissionHealthItemUi
 import io.github.mangi.eta.ui.model.PermissionHealthUiState
-import io.github.mangi.eta.ui.model.PermissionStatusUi
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.squircle.squircleBackground
+import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -45,14 +48,11 @@ fun PermissionHealthScreen(
         }
         item(key = "card") {
             Card(modifier = Modifier.padding(horizontal = 12.dp)) {
-                state.items.forEachIndexed { index, item ->
+                state.items.forEach { item ->
                     PermissionItemRow(
                         item = item,
                         onActionClick = { onAction(PermissionHealthAction.OpenItemAction(item.id)) },
                     )
-                    if (index < state.items.lastIndex) {
-                        PrefDivider()
-                    }
                 }
             }
         }
@@ -65,38 +65,25 @@ private fun PermissionItemRow(
     onActionClick: () -> Unit,
 ) {
     val icon = when (item.id) {
-        "accessibility" -> LucideR.drawable.lucide_ic_accessibility
-        "overlay" -> LucideR.drawable.lucide_ic_layers
-        "model" -> LucideR.drawable.lucide_ic_cpu
-        "terminal" -> LucideR.drawable.lucide_ic_square_terminal
-        "notification" -> LucideR.drawable.lucide_ic_bell
-        "root" -> LucideR.drawable.lucide_ic_key
-        "shizuku" -> LucideR.drawable.lucide_ic_cpu
-        "xposed" -> LucideR.drawable.lucide_ic_git_branch
-        "background" -> LucideR.drawable.lucide_ic_history
-        "app_list" -> LucideR.drawable.lucide_ic_layout_grid
-        "location" -> LucideR.drawable.lucide_ic_map_pin
-        else -> LucideR.drawable.lucide_ic_shield
+        "accessibility" -> Icons.Rounded.AccessibilityNew
+        "overlay" -> Icons.Rounded.Layers
+        "model" -> Icons.Rounded.Memory
+        "terminal" -> Icons.Rounded.Terminal
+        "notification" -> Icons.Rounded.Notifications
+        "root" -> Icons.Rounded.Key
+        "shizuku" -> Icons.Rounded.Memory
+        "xposed" -> Icons.Rounded.AccountTree
+        "background" -> Icons.Rounded.History
+        "app_list" -> Icons.Rounded.Dashboard
+        "location" -> Icons.Rounded.LocationOn
+        else -> Icons.Rounded.Shield
     }
 
-    ArrowItem(
+    ArrowPreference(
         title = item.title,
         summary = item.summary.takeIf { it.isNotBlank() },
         startAction = {
-            Box(
-                modifier = Modifier
-                    .padding(end = 12.dp)
-                    .size(36.dp)
-                    .background(MiuixTheme.colorScheme.surfaceContainerHigh, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    painter = painterResource(icon),
-                    contentDescription = null,
-                    modifier = Modifier.size(22.dp),
-                    tint = MiuixTheme.colorScheme.onBackground,
-                )
-            }
+            PreferenceIcon(icon = icon)
         },
         endActions = {
             Text(

@@ -1,17 +1,13 @@
 package io.github.mangi.eta.ui.screens.skills
-import io.github.mangi.eta.R
-import androidx.compose.ui.res.stringResource
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.FolderZip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -19,12 +15,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.composables.icons.lucide.R as LucideR
+import io.github.mangi.eta.R
+import io.github.mangi.eta.ui.components.ListEmptyState
 import io.github.mangi.eta.ui.components.MiuixDialogActions
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
-import io.github.mangi.eta.ui.components.PrefDivider
+import io.github.mangi.eta.ui.components.PreferenceIcon
 import io.github.mangi.eta.ui.model.AgentSkillsAction
 import io.github.mangi.eta.ui.model.AgentSkillsUiState
 import io.github.mangi.eta.ui.model.SkillItemUi
@@ -32,13 +29,9 @@ import io.github.mangi.eta.ui.model.canDeleteUserSkill
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
 import top.yukonga.miuix.kmp.basic.SmallTitle
-import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.window.WindowDialog
 
 private val CardHorizontalPadding = 12.dp
@@ -95,14 +88,14 @@ fun AgentSkillsScreen(
                         if (state.isImporting) {
                             Box(
                                 modifier = Modifier
-                                    .padding(end = 12.dp)
-                                    .size(36.dp),
+                                    .padding(end = 6.dp)
+                                    .size(24.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 InfiniteProgressIndicator(size = 22.dp)
                             }
                         } else {
-                            ZipImportIcon()
+                            PreferenceIcon(Icons.Rounded.FolderZip, enabled = !operationPending)
                         }
                     },
                     enabled = !operationPending,
@@ -120,7 +113,7 @@ fun AgentSkillsScreen(
                         .padding(horizontal = CardHorizontalPadding)
                         .padding(bottom = CardBottomPadding),
                 ) {
-                    builtinInstalled.forEachIndexed { index, skill ->
+                    builtinInstalled.forEach { skill ->
                         SkillSwitchRow(
                             skill = skill,
                             enabled = !operationPending,
@@ -128,7 +121,6 @@ fun AgentSkillsScreen(
                                 onAction(AgentSkillsAction.ToggleSkill(skill.id, enabled))
                             },
                         )
-                        if (index < builtinInstalled.lastIndex) PrefDivider()
                     }
                 }
             }
@@ -142,7 +134,7 @@ fun AgentSkillsScreen(
                         .padding(horizontal = CardHorizontalPadding)
                         .padding(bottom = CardBottomPadding),
                 ) {
-                    userInstalled.forEachIndexed { index, skill ->
+                    userInstalled.forEach { skill ->
                         SkillSwitchRow(
                             skill = skill,
                             enabled = !operationPending,
@@ -151,7 +143,6 @@ fun AgentSkillsScreen(
                             },
                             onDelete = { deleteTarget = skill },
                         )
-                        if (index < userInstalled.lastIndex) PrefDivider()
                     }
                 }
             }
@@ -165,24 +156,35 @@ fun AgentSkillsScreen(
                         .padding(horizontal = CardHorizontalPadding)
                         .padding(bottom = CardBottomPadding),
                 ) {
-                    removed.forEachIndexed { index, skill ->
+                    removed.forEach { skill ->
                         BasicComponent(
                             title = skill.name,
                             summary = stringResource(R.string.ui_click_to_reinstall_dc60de),
-                            startAction = { SkillIcon(skill) },
+                            startAction = { PreferenceIcon(iconForSkill(skill.id), enabled = !operationPending) },
                             enabled = !operationPending,
                             onClick = {
                                 onAction(AgentSkillsAction.ReinstallBuiltin(skill.id))
                             },
                         )
-                        if (index < removed.lastIndex) PrefDivider()
                     }
                 }
             }
         }
 
         if (state.skills.isEmpty() && !state.isLoading) {
-            item(key = "empty") { SmallTitle(stringResource(R.string.ui_no_skills_installed_yet_4e960f)) }
+            item(key = "empty") {
+                ListEmptyState(
+                    title = stringResource(R.string.ui_no_skills_installed_yet_4e960f),
+                    summary = stringResource(R.string.skills_choose_package),
+                    action = {
+                        TextButton(
+                            text = stringResource(R.string.skills_import_zip),
+                            enabled = !operationPending,
+                            onClick = openZipPicker,
+                        )
+                    },
+                )
+            }
         }
     }
 
@@ -241,88 +243,4 @@ fun AgentSkillsScreen(
             )
         }
     }
-}
-
-@Composable
-private fun SkillSwitchRow(
-    skill: SkillItemUi,
-    enabled: Boolean,
-    onToggle: (Boolean) -> Unit,
-    onDelete: (() -> Unit)? = null,
-) {
-    val noDescription = stringResource(R.string.skills_no_description)
-    val truncatedSummary = remember(skill.description) {
-        val desc = skill.description.ifBlank { noDescription }
-        if (desc.length > 80) desc.take(80) + "..." else desc
-    }
-    BasicComponent(
-        title = skill.name,
-        summary = truncatedSummary,
-        startAction = { SkillIcon(skill) },
-        endActions = {
-            onDelete?.let {
-                IconButton(
-                    onClick = it,
-                    enabled = enabled,
-                    minWidth = 36.dp,
-                    minHeight = 36.dp,
-                ) {
-                    Icon(
-                        painter = painterResource(LucideR.drawable.lucide_ic_trash_2),
-                        contentDescription = stringResource(R.string.skills_delete_named, skill.name),
-                        modifier = Modifier.size(20.dp),
-                        tint = MiuixTheme.colorScheme.error,
-                    )
-                }
-                Spacer(modifier = Modifier.width(4.dp))
-            }
-            Switch(
-                checked = skill.enabled,
-                onCheckedChange = onToggle,
-                enabled = enabled,
-            )
-        },
-    )
-}
-
-@Composable
-private fun ZipImportIcon() {
-    Box(
-        modifier = Modifier
-            .padding(end = 12.dp)
-            .size(36.dp)
-            .background(MiuixTheme.colorScheme.surfaceContainerHigh, CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            painter = painterResource(LucideR.drawable.lucide_ic_file_archive),
-            contentDescription = null,
-            modifier = Modifier.size(22.dp),
-            tint = MiuixTheme.colorScheme.onBackground,
-        )
-    }
-}
-
-@Composable
-private fun SkillIcon(skill: SkillItemUi) {
-    Box(
-        modifier = Modifier
-            .padding(end = 12.dp)
-            .size(36.dp)
-            .background(MiuixTheme.colorScheme.surfaceContainerHigh, CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            painter = painterResource(iconForSkill(skill.id)),
-            contentDescription = null,
-            modifier = Modifier.size(22.dp),
-            tint = MiuixTheme.colorScheme.onBackground,
-        )
-    }
-}
-
-private fun iconForSkill(skillId: String): Int = when (skillId) {
-    "self-improving-agent" -> LucideR.drawable.lucide_ic_refresh_cw
-    "skill-creator" -> LucideR.drawable.lucide_ic_pencil_ruler
-    else -> LucideR.drawable.lucide_ic_puzzle
 }

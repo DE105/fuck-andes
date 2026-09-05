@@ -15,9 +15,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -31,9 +31,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -46,6 +46,61 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Backspace
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.automirrored.rounded.StickyNote2
+import androidx.compose.material.icons.rounded.AdsClick
+import androidx.compose.material.icons.rounded.Alarm
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Build
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.ChatBubble
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Contacts
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.ContentPaste
+import androidx.compose.material.icons.rounded.ContentPasteGo
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.DocumentScanner
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.EditNote
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.FindReplace
+import androidx.compose.material.icons.rounded.Flare
+import androidx.compose.material.icons.rounded.FolderOpen
+import androidx.compose.material.icons.rounded.GppMaybe
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.Insights
+import androidx.compose.material.icons.rounded.Key
+import androidx.compose.material.icons.rounded.Keyboard
+import androidx.compose.material.icons.rounded.KeyboardCommandKey
+import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.Layers
+import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.MonitorHeart
+import androidx.compose.material.icons.rounded.MyLocation
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.OpenWith
+import androidx.compose.material.icons.rounded.Phone
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Psychology
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.RocketLaunch
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.ShoppingBag
+import androidx.compose.material.icons.rounded.Smartphone
+import androidx.compose.material.icons.rounded.SwapVert
+import androidx.compose.material.icons.rounded.Terminal
+import androidx.compose.material.icons.rounded.TouchApp
+import androidx.compose.material.icons.rounded.WebAsset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -68,10 +123,10 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -85,16 +140,14 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextMotion
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.takeOrElse
 import androidx.lifecycle.compose.LifecycleResumeEffect
-import com.composables.icons.lucide.R as LucideR
 import com.mikepenz.markdown.annotator.annotatorSettings
 import com.mikepenz.markdown.annotator.buildMarkdownAnnotatedString
 import com.mikepenz.markdown.compose.LocalMarkdownA11yLabels
@@ -115,18 +168,20 @@ import com.mikepenz.markdown.compose.elements.listDepth
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownColor
 import com.mikepenz.markdown.m3.markdownTypography
+import com.mikepenz.markdown.model.MarkdownState
+import com.mikepenz.markdown.model.State
 import com.mikepenz.markdown.model.markdownAnimations
 import com.mikepenz.markdown.model.markdownDimens
 import com.mikepenz.markdown.model.markdownPadding
-import com.mikepenz.markdown.model.MarkdownState
 import com.mikepenz.markdown.model.rememberMarkdownState
-import com.mikepenz.markdown.model.State
 import com.mikepenz.markdown.utils.getUnescapedTextInNode
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.browser.AgentBrowserSession
 import io.github.mangi.eta.agent.browser.BrowserSessionSnapshot
 import io.github.mangi.eta.agent.model.AgentFileReferencePromptCodec
 import io.github.mangi.eta.agent.overlay.toolDisplayName
-import io.github.mangi.eta.R
+import io.github.mangi.eta.ui.markdown.StreamingGfmParserSession
+import io.github.mangi.eta.ui.markdown.StreamingGfmSnapshot
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
 import io.github.mangi.eta.ui.model.AgentMessageUi
 import io.github.mangi.eta.ui.model.RunTraceMessageUi
@@ -138,18 +193,6 @@ import io.github.mangi.eta.ui.model.ToolActivityMessageUi
 import io.github.mangi.eta.ui.model.ToolActivityStatusUi
 import io.github.mangi.eta.ui.model.ToolSummaryMessageUi
 import io.github.mangi.eta.ui.model.UserMessageUi
-import io.github.mangi.eta.ui.markdown.StreamingGfmParserSession
-import io.github.mangi.eta.ui.markdown.StreamingGfmSnapshot
-import org.intellij.markdown.IElementType
-import org.intellij.markdown.MarkdownTokenTypes
-import org.intellij.markdown.MarkdownElementTypes
-import org.intellij.markdown.ast.ASTNode
-import org.intellij.markdown.ast.findChildOfType
-import org.intellij.markdown.flavours.gfm.GFMElementTypes.HEADER
-import org.intellij.markdown.flavours.gfm.GFMElementTypes.ROW
-import org.intellij.markdown.flavours.gfm.GFMElementTypes.TABLE
-import org.intellij.markdown.flavours.gfm.GFMTokenTypes.CHECK_BOX
-import org.intellij.markdown.flavours.gfm.GFMTokenTypes.CELL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -157,12 +200,22 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.yukonga.miuix.kmp.basic.Icon
+import org.intellij.markdown.IElementType
+import org.intellij.markdown.MarkdownElementTypes
+import org.intellij.markdown.MarkdownTokenTypes
+import org.intellij.markdown.ast.ASTNode
+import org.intellij.markdown.ast.findChildOfType
+import org.intellij.markdown.flavours.gfm.GFMElementTypes.HEADER
+import org.intellij.markdown.flavours.gfm.GFMElementTypes.ROW
+import org.intellij.markdown.flavours.gfm.GFMElementTypes.TABLE
+import org.intellij.markdown.flavours.gfm.GFMTokenTypes.CELL
+import org.intellij.markdown.flavours.gfm.GFMTokenTypes.CHECK_BOX
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.RichTooltip
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TooltipAnchorPosition
 import top.yukonga.miuix.kmp.basic.TooltipBox
 import top.yukonga.miuix.kmp.basic.TooltipDefaults
@@ -379,9 +432,11 @@ internal fun AgentWorkProcess(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                painter = painterResource(
-                    if (running) LucideR.drawable.lucide_ic_atom else LucideR.drawable.lucide_ic_wrench
-                ),
+                imageVector = when {
+                    runningTool != null -> runningTool.toolName.toToolIcon()
+                    running -> Icons.Rounded.Flare
+                    else -> Icons.Rounded.Build
+                },
                 contentDescription = null,
                 modifier = Modifier
                     .size(15.dp)
@@ -419,10 +474,8 @@ internal fun AgentWorkProcess(
                 modifier = Modifier.weight(1f),
             )
             Icon(
-                painter = painterResource(
-                    if (expanded) LucideR.drawable.lucide_ic_chevron_down
-                    else LucideR.drawable.lucide_ic_chevron_right
-                ),
+                imageVector = if (expanded) Icons.Rounded.ExpandMore
+                    else Icons.Rounded.ChevronRight,
                 contentDescription = stringResource(
                     if (expanded) R.string.work_collapse else R.string.work_expand,
                 ),
@@ -507,7 +560,7 @@ private fun UserMessageBubble(
                 RichTooltip(insideMargin = PaddingValues(horizontal = 8.dp, vertical = 6.dp)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                         MessageTooltipAction(
-                            icon = LucideR.drawable.lucide_ic_copy,
+                            icon = Icons.Rounded.ContentCopy,
                             label = stringResource(R.string.ui_copy_4edd1d),
                             onClick = {
                                 @Suppress("DEPRECATION")
@@ -516,7 +569,7 @@ private fun UserMessageBubble(
                             },
                         )
                         MessageTooltipAction(
-                            icon = LucideR.drawable.lucide_ic_pencil,
+                            icon = Icons.Rounded.Edit,
                             label = stringResource(R.string.ui_edit_a7f814),
                             onClick = {
                                 tooltipState.dismiss()
@@ -524,7 +577,7 @@ private fun UserMessageBubble(
                             },
                         )
                         MessageTooltipAction(
-                            icon = LucideR.drawable.lucide_ic_trash_2,
+                            icon = Icons.Rounded.Delete,
                             label = stringResource(R.string.ui_delete_3755f5),
                             onClick = {
                                 tooltipState.dismiss()
@@ -613,7 +666,7 @@ private fun UserMessageBubble(
 
 @Composable
 private fun MessageTooltipAction(
-    icon: Int,
+    icon: ImageVector,
     label: String,
     onClick: () -> Unit,
 ) {
@@ -625,7 +678,7 @@ private fun MessageTooltipAction(
         verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         Icon(
-            painter = painterResource(icon),
+            imageVector = icon,
             contentDescription = label,
             modifier = Modifier.size(16.dp),
             tint = MiuixTheme.colorScheme.onSurface,
@@ -733,10 +786,8 @@ private fun AgentMessageBlock(
                     minHeight = 30.dp,
                 ) {
                     Icon(
-                        painter = painterResource(
-                            if (copied) LucideR.drawable.lucide_ic_check
-                            else LucideR.drawable.lucide_ic_copy
-                        ),
+                        imageVector = if (copied) Icons.Rounded.Check
+                            else Icons.Rounded.ContentCopy,
                         contentDescription = stringResource(
                             if (copied) R.string.copy_copied else R.string.copy_answer,
                         ),
@@ -757,7 +808,7 @@ private fun AgentMessageBlock(
                             minHeight = 30.dp,
                         ) {
                             Icon(
-                                painter = painterResource(LucideR.drawable.lucide_ic_refresh_cw),
+                                imageVector = Icons.Rounded.Refresh,
                                 contentDescription = stringResource(R.string.ui_regenerate_reply_84a7d9),
                                 modifier = Modifier.size(15.dp),
                                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.75f),
@@ -772,7 +823,7 @@ private fun AgentMessageBlock(
                             minHeight = 30.dp,
                         ) {
                             Icon(
-                                painter = painterResource(LucideR.drawable.lucide_ic_trash_2),
+                                imageVector = Icons.Rounded.Delete,
                                 contentDescription = stringResource(R.string.ui_delete_this_conversation_3f351b),
                                 modifier = Modifier.size(15.dp),
                                 tint = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.75f),
@@ -1676,10 +1727,8 @@ private fun ChatCodeBlock(
                 minHeight = 28.dp,
             ) {
                 Icon(
-                    painter = painterResource(
-                        if (copied) LucideR.drawable.lucide_ic_check
-                        else LucideR.drawable.lucide_ic_copy
-                    ),
+                    imageVector = if (copied) Icons.Rounded.Check
+                        else Icons.Rounded.ContentCopy,
                     contentDescription = stringResource(
                         if (copied) R.string.copy_copied else R.string.copy_code,
                     ),
@@ -2084,7 +2133,7 @@ private fun ThinkingRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                painter = painterResource(LucideR.drawable.lucide_ic_lightbulb),
+                imageVector = Icons.Rounded.Flare,
                 contentDescription = null,
                 modifier = Modifier
                     .size(15.dp)
@@ -2117,10 +2166,8 @@ private fun ThinkingRow(
                 modifier = Modifier.weight(1f),
             )
             Icon(
-                painter = painterResource(
-                    if (expanded) LucideR.drawable.lucide_ic_chevron_down
-                    else LucideR.drawable.lucide_ic_chevron_right
-                ),
+                imageVector = if (expanded) Icons.Rounded.ExpandMore
+                    else Icons.Rounded.ChevronRight,
                 contentDescription = stringResource(
                     if (expanded) R.string.reasoning_collapse else R.string.reasoning_expand,
                 ),
@@ -2230,7 +2277,7 @@ private fun ToolActivityInline(
         ) {
             // 工具图标与思考行的灯泡共用同一前导槽位，保证卡片内左边缘对齐。
             Icon(
-                painter = painterResource(message.toolName.toToolIcon()),
+                imageVector = message.toolName.toToolIcon(),
                 contentDescription = null,
                 modifier = Modifier.size(15.dp),
                 tint = when (message.status) {
@@ -2289,7 +2336,7 @@ private fun ToolActivityInline(
                     // 成功是常态，只留低饱和度对勾；运行中与失败才占用视觉注意力
                     if (status == ToolActivityStatusUi.Success) {
                         Icon(
-                            painter = painterResource(LucideR.drawable.lucide_ic_check),
+                            imageVector = Icons.Rounded.Check,
                             contentDescription = stringResource(R.string.tool_status_success),
                             modifier = Modifier.size(13.dp),
                             tint = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.7f),
@@ -2317,10 +2364,8 @@ private fun ToolActivityInline(
                     }
                 }
                 Icon(
-                    painter = painterResource(
-                        if (isExpanded) LucideR.drawable.lucide_ic_chevron_down
-                        else LucideR.drawable.lucide_ic_chevron_right
-                    ),
+                    imageVector = if (isExpanded) Icons.Rounded.ExpandMore
+                        else Icons.Rounded.ChevronRight,
                     contentDescription = null,
                     modifier = Modifier.size(13.dp),
                     tint = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.5f),
@@ -2455,7 +2500,7 @@ private fun BrowserPagePreview(
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    painter = painterResource(LucideR.drawable.lucide_ic_globe),
+                    imageVector = Icons.Rounded.Language,
                     contentDescription = null,
                     modifier = Modifier.size(20.dp),
                     tint = MiuixTheme.colorScheme.outline,
@@ -2538,10 +2583,8 @@ private fun ToolCommandBlock(
                 minHeight = 28.dp,
             ) {
                 Icon(
-                    painter = painterResource(
-                        if (copied) LucideR.drawable.lucide_ic_check
-                        else LucideR.drawable.lucide_ic_copy
-                    ),
+                    imageVector = if (copied) Icons.Rounded.Check
+                        else Icons.Rounded.ContentCopy,
                     contentDescription = stringResource(
                         if (copied) R.string.copy_copied else R.string.copy_command,
                     ),
@@ -2599,7 +2642,7 @@ private fun RunTraceRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            painter = painterResource(LucideR.drawable.lucide_ic_check),
+            imageVector = Icons.Rounded.Check,
             contentDescription = null,
             modifier = Modifier.size(15.dp),
             tint = MiuixTheme.colorScheme.primary,
@@ -2612,7 +2655,7 @@ private fun RunTraceRow(
             modifier = Modifier.weight(1f),
         )
         Icon(
-            painter = painterResource(LucideR.drawable.lucide_ic_chevron_right),
+            imageVector = Icons.Rounded.ChevronRight,
             contentDescription = null,
             modifier = Modifier.size(14.dp),
             tint = MiuixTheme.colorScheme.onSurfaceVariantSummary.copy(alpha = 0.7f),
@@ -2650,7 +2693,7 @@ private fun ToolSummaryInline(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    painter = painterResource(tool.toToolIcon()),
+                    imageVector = tool.toToolIcon(),
                     contentDescription = null,
                     modifier = Modifier.size(12.dp),
                     tint = MiuixTheme.colorScheme.primary
@@ -2697,7 +2740,7 @@ private fun SuggestionChipsRow(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    painter = painterResource(LucideR.drawable.lucide_ic_sparkles),
+                    imageVector = Icons.Rounded.AutoAwesome,
                     contentDescription = null,
                     modifier = Modifier.size(12.dp),
                     tint = MiuixTheme.colorScheme.primary
@@ -2732,63 +2775,63 @@ private fun ToolActivityStatusUi.statusLabel(): String = when (this) {
 }
 
 @Composable
-private fun String.toToolIcon(): Int = when (this) {
-    "observe_screen" -> LucideR.drawable.lucide_ic_scan_text
-    "tap", "tap_element" -> LucideR.drawable.lucide_ic_mouse_pointer_click
-    "tap_area" -> LucideR.drawable.lucide_ic_locate_fixed
-    "long_press", "long_press_element" -> LucideR.drawable.lucide_ic_hand
-    "swipe" -> LucideR.drawable.lucide_ic_move
-    "scroll", "scroll_element" -> LucideR.drawable.lucide_ic_scroll
-    "paste_text" -> LucideR.drawable.lucide_ic_clipboard_paste
-    "get_clipboard", "set_clipboard" -> LucideR.drawable.lucide_ic_clipboard
-    "input_text" -> LucideR.drawable.lucide_ic_keyboard
-    "replace_text" -> LucideR.drawable.lucide_ic_replace
-    "clear_text" -> LucideR.drawable.lucide_ic_eraser
-    "wait", "wait_for_text", "wait_for_package" -> LucideR.drawable.lucide_ic_clock
-    "search_apps" -> LucideR.drawable.lucide_ic_search
-    "get_current_context" -> LucideR.drawable.lucide_ic_map_pin
-    "launch_app" -> LucideR.drawable.lucide_ic_rocket
-    "open_uri" -> LucideR.drawable.lucide_ic_external_link
-    "browser_use" -> LucideR.drawable.lucide_ic_globe
-    "memory_get", "memory_write" -> LucideR.drawable.lucide_ic_brain
-    "press_key" -> LucideR.drawable.lucide_ic_command
-    "open_system_panel" -> LucideR.drawable.lucide_ic_panel_top_open
-    "read_image" -> LucideR.drawable.lucide_ic_image
+private fun String.toToolIcon(): ImageVector = when (this) {
+    "observe_screen" -> Icons.Rounded.DocumentScanner
+    "tap", "tap_element" -> Icons.Rounded.AdsClick
+    "tap_area" -> Icons.Rounded.MyLocation
+    "long_press", "long_press_element" -> Icons.Rounded.TouchApp
+    "swipe" -> Icons.Rounded.OpenWith
+    "scroll", "scroll_element" -> Icons.Rounded.SwapVert
+    "paste_text" -> Icons.Rounded.ContentPasteGo
+    "get_clipboard", "set_clipboard" -> Icons.Rounded.ContentPaste
+    "input_text" -> Icons.Rounded.Keyboard
+    "replace_text" -> Icons.Rounded.FindReplace
+    "clear_text" -> Icons.AutoMirrored.Rounded.Backspace
+    "wait", "wait_for_text", "wait_for_package" -> Icons.Rounded.Schedule
+    "search_apps" -> Icons.Rounded.Search
+    "get_current_context" -> Icons.Rounded.LocationOn
+    "launch_app" -> Icons.Rounded.RocketLaunch
+    "open_uri" -> Icons.AutoMirrored.Rounded.OpenInNew
+    "browser_use" -> Icons.Rounded.Language
+    "memory_get", "memory_write" -> Icons.Rounded.Psychology
+    "press_key" -> Icons.Rounded.KeyboardCommandKey
+    "open_system_panel" -> Icons.Rounded.WebAsset
+    "read_image" -> Icons.Rounded.Image
     "skills_list", "skills_read", "skills_read_resource",
     "skills_list_curated", "skills_inspect_github", "skills_install_from_github",
-        -> LucideR.drawable.lucide_ic_sparkles
+        -> Icons.Rounded.AutoAwesome
     "set_alarm", "set_timer", "list_alarms", "list_active_timers" ->
-        LucideR.drawable.lucide_ic_alarm_clock
+        Icons.Rounded.Alarm
     "device_status", "network_info", "set_device_state", "get_device_environment" ->
-        LucideR.drawable.lucide_ic_smartphone
-    "media_control" -> LucideR.drawable.lucide_ic_play
-    "set_volume" -> LucideR.drawable.lucide_ic_settings
-    "top_memory_apps", "top_storage_apps" -> LucideR.drawable.lucide_ic_layers
-    "read_sms_code" -> LucideR.drawable.lucide_ic_key
-    "recent_notifications", "search_notification_history" -> LucideR.drawable.lucide_ic_bell
-    "wifi_credentials" -> LucideR.drawable.lucide_ic_lock
-    "get_setting", "set_setting", "app_state_control" -> LucideR.drawable.lucide_ic_shield_alert
-    "get_logcat" -> LucideR.drawable.lucide_ic_file_text
-    "get_current_location", "search_saved_places" -> LucideR.drawable.lucide_ic_map_pin
-    "get_health_summary" -> LucideR.drawable.lucide_ic_heart_pulse
-    "recent_app_activity", "app_usage_summary" -> LucideR.drawable.lucide_ic_activity
-    "search_calendar_events" -> LucideR.drawable.lucide_ic_calendar
-    "search_contacts" -> LucideR.drawable.lucide_ic_contact
-    "search_call_history" -> LucideR.drawable.lucide_ic_phone
-    "search_messages" -> LucideR.drawable.lucide_ic_message_square
+        Icons.Rounded.Smartphone
+    "media_control" -> Icons.Rounded.PlayArrow
+    "set_volume" -> Icons.Rounded.Settings
+    "top_memory_apps", "top_storage_apps" -> Icons.Rounded.Layers
+    "read_sms_code" -> Icons.Rounded.Key
+    "recent_notifications", "search_notification_history" -> Icons.Rounded.Notifications
+    "wifi_credentials" -> Icons.Rounded.Lock
+    "get_setting", "set_setting", "app_state_control" -> Icons.Rounded.GppMaybe
+    "get_logcat" -> Icons.Rounded.Description
+    "get_current_location", "search_saved_places" -> Icons.Rounded.LocationOn
+    "get_health_summary" -> Icons.Rounded.MonitorHeart
+    "recent_app_activity", "app_usage_summary" -> Icons.Rounded.Insights
+    "search_calendar_events" -> Icons.Rounded.CalendarMonth
+    "search_contacts" -> Icons.Rounded.Contacts
+    "search_call_history" -> Icons.Rounded.Phone
+    "search_messages" -> Icons.Rounded.ChatBubble
     "search_media", "search_audio", "search_qq_chat_images", "search_wechat_chat_images" ->
-        LucideR.drawable.lucide_ic_image
+        Icons.Rounded.Image
     "search_recordings", "search_coloros_recordings", "search_recording_summaries" ->
-        LucideR.drawable.lucide_ic_mic
-    "search_files" -> LucideR.drawable.lucide_ic_folder_open
-    "search_downloads" -> LucideR.drawable.lucide_ic_download
-    "search_clipboard_history" -> LucideR.drawable.lucide_ic_clipboard
-    "search_coloros_notes" -> LucideR.drawable.lucide_ic_sticky_note
-    "search_coloros_memories" -> LucideR.drawable.lucide_ic_brain
-    "search_personal_orders" -> LucideR.drawable.lucide_ic_shopping_bag
-    "terminal", "run_command" -> LucideR.drawable.lucide_ic_square_terminal
-    "read_file" -> LucideR.drawable.lucide_ic_file_text
-    "write_file" -> LucideR.drawable.lucide_ic_file_pen
-    "list_directory" -> LucideR.drawable.lucide_ic_folder_open
-    else -> LucideR.drawable.lucide_ic_settings
+        Icons.Rounded.Mic
+    "search_files" -> Icons.Rounded.FolderOpen
+    "search_downloads" -> Icons.Rounded.Download
+    "search_clipboard_history" -> Icons.Rounded.ContentPaste
+    "search_coloros_notes" -> Icons.AutoMirrored.Rounded.StickyNote2
+    "search_coloros_memories" -> Icons.Rounded.Psychology
+    "search_personal_orders" -> Icons.Rounded.ShoppingBag
+    "terminal", "run_command" -> Icons.Rounded.Terminal
+    "read_file" -> Icons.Rounded.Description
+    "write_file" -> Icons.Rounded.EditNote
+    "list_directory" -> Icons.Rounded.FolderOpen
+    else -> Icons.Rounded.Settings
 }

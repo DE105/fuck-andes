@@ -1,14 +1,13 @@
 package io.github.mangi.eta.agent.overlay
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -40,6 +39,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -64,6 +69,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -74,20 +80,17 @@ import androidx.compose.ui.unit.sp
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownTypography
 import com.mikepenz.markdown.model.rememberMarkdownState
+import io.github.mangi.eta.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
-import com.composables.icons.lucide.R as LucideR
-import io.github.mangi.eta.R
 
 // Miuix 未提供语义 success 色，沿用项目既有值；失败色走主题 error
 private val SuccessColor = Color(0xFF34C759)
@@ -419,7 +422,7 @@ internal fun AgentOverlayBubble(
                         cornerRadius = 14.dp
                     ) {
                         Icon(
-                            painter = painterResource(LucideR.drawable.lucide_ic_pencil),
+                            imageVector = Icons.Rounded.Edit,
                             contentDescription = stringResource(R.string.overlay_supplement),
                             modifier = Modifier.size(14.dp),
                             tint = MiuixTheme.colorScheme.onSurface,
@@ -433,7 +436,7 @@ internal fun AgentOverlayBubble(
                             cornerRadius = 14.dp
                         ) {
                             Icon(
-                                painter = painterResource(LucideR.drawable.lucide_ic_pause),
+                                imageVector = Icons.Rounded.Pause,
                                 contentDescription = stringResource(R.string.overlay_pause),
                                 modifier = Modifier.size(14.dp),
                                 tint = MiuixTheme.colorScheme.onSurface,
@@ -447,7 +450,7 @@ internal fun AgentOverlayBubble(
                             cornerRadius = 14.dp,
                         ) {
                             Icon(
-                                painter = painterResource(LucideR.drawable.lucide_ic_play),
+                                imageVector = Icons.Rounded.PlayArrow,
                                 contentDescription = stringResource(R.string.overlay_resume),
                                 modifier = Modifier.size(14.dp),
                                 tint = MiuixTheme.colorScheme.primary,
@@ -461,7 +464,7 @@ internal fun AgentOverlayBubble(
                         cornerRadius = 14.dp,
                     ) {
                         Icon(
-                            painter = painterResource(LucideR.drawable.lucide_ic_square),
+                            imageVector = Icons.Rounded.Stop,
                             contentDescription = stringResource(R.string.action_stop),
                             modifier = Modifier.size(14.dp),
                             tint = MiuixTheme.colorScheme.error,
@@ -637,7 +640,7 @@ internal fun AgentResultCard(
                             cornerRadius = 16.dp,
                         ) {
                             Icon(
-                                painter = painterResource(LucideR.drawable.lucide_ic_x),
+                                imageVector = Icons.Rounded.Close,
                                 contentDescription = stringResource(R.string.action_close),
                                 modifier = Modifier.size(16.dp),
                                 tint = MiuixTheme.colorScheme.onSurfaceVariantActions,

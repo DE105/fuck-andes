@@ -9,6 +9,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AddComment
+import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.Menu
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,7 +48,6 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.window.WindowListPopup
-import com.composables.icons.lucide.R as LucideR
 
 /**
  * Agent App 统一壳层。
@@ -170,7 +175,7 @@ private fun AgentTopBar(
         if (isHome) {
             IconButton(onClick = onOpenConversationPane) {
                 Icon(
-                    painter = painterResource(LucideR.drawable.lucide_ic_menu),
+                    imageVector = Icons.Rounded.Menu,
                     contentDescription = stringResource(R.string.action_conversation_history),
                 )
             }
@@ -234,14 +239,13 @@ private fun TopBarOverflowMenu(
     Box {
         IconButton(onClick = { onRefreshKimiWeb(); showMenu = true }) {
             Icon(
-                painter = painterResource(LucideR.drawable.lucide_ic_ellipsis_vertical),
+                imageVector = Icons.Rounded.MoreVert,
                 contentDescription = stringResource(R.string.action_more),
             )
         }
         WindowListPopup(
             show = showMenu,
             alignment = PopupPositionProvider.Align.End,
-            enableWindowDim = false,
             onDismissRequest = { showMenu = false },
         ) {
             val newConversationText = stringResource(R.string.action_new_conversation)
@@ -262,7 +266,7 @@ private fun TopBarOverflowMenu(
                         text = newConversationText,
                         icon = { modifier ->
                             Icon(
-                                painter = painterResource(LucideR.drawable.lucide_ic_message_circle_plus),
+                                imageVector = Icons.Rounded.AddComment,
                                 contentDescription = null,
                                 modifier = modifier.size(TopBarMenuIconSize),
                             )
@@ -272,7 +276,7 @@ private fun TopBarOverflowMenu(
                         text = openTerminalText,
                         icon = { modifier ->
                             Icon(
-                                painter = painterResource(LucideR.drawable.lucide_ic_square_terminal),
+                                imageVector = Icons.Rounded.Terminal,
                                 contentDescription = null,
                                 modifier = modifier.size(TopBarMenuIconSize),
                             )
@@ -292,7 +296,7 @@ private fun TopBarOverflowMenu(
                         text = openBrowserText,
                         icon = { modifier ->
                             Icon(
-                                painter = painterResource(LucideR.drawable.lucide_ic_globe),
+                                imageVector = Icons.Rounded.Language,
                                 contentDescription = null,
                                 modifier = modifier.size(TopBarMenuIconSize),
                             )

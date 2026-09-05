@@ -1,6 +1,4 @@
 package io.github.mangi.eta.ui.components
-import io.github.mangi.eta.R
-import androidx.compose.ui.res.stringResource
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
@@ -38,6 +36,12 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.DocumentScanner
+import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.RocketLaunch
+import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -47,52 +51,51 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.composables.icons.lucide.R as LucideR
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.browser.AgentBrowserSession
 import io.github.mangi.eta.data.model.ReasoningEffort
+import io.github.mangi.eta.ui.app.AgentConversationRevisionReducer
+import io.github.mangi.eta.ui.app.LocalBlurEnabled
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
-import io.github.mangi.eta.ui.model.AgentMessageUi
 import io.github.mangi.eta.ui.model.AgentContextUsageUi
+import io.github.mangi.eta.ui.model.AgentMessageUi
 import io.github.mangi.eta.ui.model.AgentModelPickerUiState
 import io.github.mangi.eta.ui.model.MessageEditUiState
 import io.github.mangi.eta.ui.model.PendingFileReferenceUi
 import io.github.mangi.eta.ui.model.PendingImageUi
-import io.github.mangi.eta.ui.model.RunTraceMessageUi
-import io.github.mangi.eta.ui.model.SuggestionChipsMessageUi
 import io.github.mangi.eta.ui.model.ThinkingMessageUi
 import io.github.mangi.eta.ui.model.ToolActivityMessageUi
 import io.github.mangi.eta.ui.model.ToolSummaryMessageUi
 import io.github.mangi.eta.ui.model.UserMessageUi
 import io.github.mangi.eta.ui.model.latestContextUsage
-import io.github.mangi.eta.ui.app.AgentConversationRevisionReducer
-import io.github.mangi.eta.ui.app.LocalBlurEnabled
+import kotlin.math.exp
+import kotlin.math.min
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlin.math.exp
-import kotlin.math.min
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -648,7 +651,7 @@ internal fun AgentConversationMessages(
                 minHeight = 40.dp,
             ) {
                 Icon(
-                    painter = painterResource(LucideR.drawable.lucide_ic_arrow_down),
+                    imageVector = Icons.Rounded.ArrowDownward,
                     contentDescription = stringResource(R.string.ui_back_to_bottom_32282e),
                     modifier = Modifier.size(17.dp),
                     tint = MiuixTheme.colorScheme.onSurface,
@@ -925,26 +928,22 @@ private fun EmptyChatState(
     val suggestions = listOf(
         SuggestionItem(
             title = stringResource(R.string.ui_analyze_current_screen_ebf08f),
-            iconRes = LucideR.drawable.lucide_ic_scan_text,
-            iconTint = AccentBlue,
+            icon = Icons.Rounded.DocumentScanner,
             prompt = stringResource(R.string.suggestion_analyze_screen_prompt),
         ),
         SuggestionItem(
             title = stringResource(R.string.ui_open_wechat_6b2c28),
-            iconRes = LucideR.drawable.lucide_ic_rocket,
-            iconTint = AccentGreen,
+            icon = Icons.Rounded.RocketLaunch,
             prompt = stringResource(R.string.suggestion_open_wechat_prompt),
         ),
         SuggestionItem(
             title = stringResource(R.string.ui_browse_the_web_da7afb),
-            iconRes = LucideR.drawable.lucide_ic_globe,
-            iconTint = AccentRed,
+            icon = Icons.Rounded.Language,
             prompt = stringResource(R.string.suggestion_browse_web_prompt),
         ),
         SuggestionItem(
             title = stringResource(R.string.ui_check_memory_pressure_2d9600),
-            iconRes = LucideR.drawable.lucide_ic_square_terminal,
-            iconTint = AccentYellow,
+            icon = Icons.Rounded.Terminal,
             prompt = stringResource(R.string.suggestion_memory_pressure_prompt),
         ),
     )
@@ -1022,10 +1021,10 @@ private fun SuggestionCard(
             .padding(horizontal = 13.dp, vertical = 12.dp),
     ) {
         Icon(
-            painter = painterResource(item.iconRes),
+            imageVector = item.icon,
             contentDescription = null,
             modifier = Modifier.size(17.dp),
-            tint = item.iconTint,
+            tint = MiuixTheme.colorScheme.onBackground,
         )
         Spacer(modifier = Modifier.height(9.dp))
         Text(
@@ -1037,15 +1036,8 @@ private fun SuggestionCard(
     }
 }
 
-// 建议卡使用固定功能色区分建议类型，不与启动图标调色板绑定。
-private val AccentBlue = Color(0xFF4285F4)
-private val AccentRed = Color(0xFFEA4335)
-private val AccentYellow = Color(0xFFF9AB00)
-private val AccentGreen = Color(0xFF34A853)
-
 private data class SuggestionItem(
     val title: String,
-    val iconRes: Int,
-    val iconTint: Color,
+    val icon: ImageVector,
     val prompt: String,
 )

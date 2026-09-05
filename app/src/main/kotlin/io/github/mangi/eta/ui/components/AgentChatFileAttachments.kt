@@ -1,6 +1,4 @@
 package io.github.mangi.eta.ui.components
-import io.github.mangi.eta.R
-import androidx.compose.ui.res.stringResource
 
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -22,6 +20,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,7 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -40,8 +44,7 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.text.KeyboardOptions
-import com.composables.icons.lucide.R as LucideR
+import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.model.AgentFileReference
 import io.github.mangi.eta.agent.model.AgentFileReferenceKind
 import io.github.mangi.eta.ui.model.PendingFileReferenceUi
@@ -108,7 +111,7 @@ internal fun AgentAttachmentPickerButton(
             minHeight = ChatInputActionSize,
         ) {
             Icon(
-                painter = painterResource(LucideR.drawable.lucide_ic_plus),
+                imageVector = Icons.Rounded.Add,
                 contentDescription = stringResource(R.string.ui_add_attachment_dba9e8),
                 modifier = Modifier.size(ChatInputActionIconSize),
                 tint = MiuixTheme.colorScheme.onSurface,
@@ -120,7 +123,6 @@ internal fun AgentAttachmentPickerButton(
                 InputPopupPositionProvider(popupAnchorTopPx)
             },
             alignment = PopupPositionProvider.Align.TopStart,
-            enableWindowDim = false,
             onDismissRequest = { showPopup = false },
             maxHeight = popupMaxHeight,
         ) {
@@ -224,13 +226,11 @@ internal fun PendingFileReferenceStrip(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Icon(
-                    painter = painterResource(
-                        if (reference.kind == AgentFileReferenceKind.Directory) {
-                            LucideR.drawable.lucide_ic_folder_open
-                        } else {
-                            LucideR.drawable.lucide_ic_file_text
-                        }
-                    ),
+                    imageVector = if (reference.kind == AgentFileReferenceKind.Directory) {
+                        Icons.Rounded.FolderOpen
+                    } else {
+                        Icons.Rounded.Description
+                    },
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
                     tint = MiuixTheme.colorScheme.primary,
@@ -252,7 +252,7 @@ internal fun PendingFileReferenceStrip(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        painter = painterResource(LucideR.drawable.lucide_ic_x),
+                        imageVector = Icons.Rounded.Close,
                         contentDescription = stringResource(R.string.ui_remove_file_reference_04bbfc),
                         modifier = Modifier.size(15.dp),
                         tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
@@ -293,13 +293,11 @@ internal fun SentFileReferenceFlow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Icon(
-                    painter = painterResource(
-                        if (reference.kind == AgentFileReferenceKind.Directory) {
-                            LucideR.drawable.lucide_ic_folder_open
-                        } else {
-                            LucideR.drawable.lucide_ic_file_text
-                        }
-                    ),
+                    imageVector = if (reference.kind == AgentFileReferenceKind.Directory) {
+                        Icons.Rounded.FolderOpen
+                    } else {
+                        Icons.Rounded.Description
+                    },
                     contentDescription = null,
                     modifier = Modifier.size(17.dp),
                     tint = MiuixTheme.colorScheme.primary,

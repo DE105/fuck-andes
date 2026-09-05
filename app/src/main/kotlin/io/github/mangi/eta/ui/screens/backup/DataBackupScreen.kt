@@ -5,11 +5,12 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -18,22 +19,20 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.composables.icons.lucide.R as LucideR
 import io.github.mangi.eta.R
 import io.github.mangi.eta.data.repository.EtaBackupSummary
 import io.github.mangi.eta.ui.components.MiuixDialogActions
-import io.github.mangi.eta.ui.components.MiuixPageBottomSpacer
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.launch
 import java.io.InputStream
 import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -127,7 +126,7 @@ internal fun DataBackupScreen(
                     enabled = !busy,
                     startAction = {
                         BackupIcon(
-                            icon = LucideR.drawable.lucide_ic_download,
+                            icon = Icons.Rounded.Download,
                             loading = busy,
                         )
                     },
@@ -135,14 +134,13 @@ internal fun DataBackupScreen(
                         exportLauncher.launch(defaultBackupFileName())
                     },
                 )
-                top.yukonga.miuix.kmp.basic.HorizontalDivider()
                 ArrowPreference(
                     title = stringResource(R.string.data_backup_import),
                     summary = stringResource(R.string.data_backup_import_summary),
                     enabled = !busy,
                     startAction = {
                         BackupIcon(
-                            icon = LucideR.drawable.lucide_ic_file_text,
+                            icon = Icons.Rounded.Description,
                             loading = false,
                         )
                     },
@@ -151,9 +149,6 @@ internal fun DataBackupScreen(
                     },
                 )
             }
-        }
-        item(key = "bottom-spacer") {
-            MiuixPageBottomSpacer()
         }
     }
 
@@ -214,21 +209,20 @@ internal fun DataBackupScreen(
 }
 
 @Composable
-private fun BackupIcon(icon: Int, loading: Boolean) {
+private fun BackupIcon(icon: ImageVector, loading: Boolean) {
     Box(
         modifier = Modifier
-            .padding(end = 12.dp)
-            .size(36.dp)
-            .background(MiuixTheme.colorScheme.surfaceContainerHigh, CircleShape),
+            .padding(end = 6.dp)
+            .size(24.dp),
         contentAlignment = Alignment.Center,
     ) {
         if (loading) {
             InfiniteProgressIndicator(size = 20.dp)
         } else {
             Icon(
-                painter = painterResource(icon),
+                imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.size(21.dp),
+                modifier = Modifier.size(24.dp),
                 tint = MiuixTheme.colorScheme.onBackground,
             )
         }

@@ -3,11 +3,14 @@ package io.github.mangi.eta.ui.screens.terminal
 import android.content.Context
 import android.text.format.Formatter
 import androidx.annotation.StringRes
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -18,14 +21,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.terminal.AlpineEnvironmentInstaller
 import io.github.mangi.eta.agent.terminal.AlpineEnvironmentState
-import io.github.mangi.eta.agent.terminal.AlpineEnvironmentStatus
 import io.github.mangi.eta.agent.terminal.AlpineInstallProgress
 import io.github.mangi.eta.agent.terminal.AlpineInstallResult
 import io.github.mangi.eta.agent.terminal.AlpineInstallStage
@@ -34,7 +34,6 @@ import io.github.mangi.eta.agent.terminal.ApkAnalysisInstallResult
 import io.github.mangi.eta.agent.terminal.ApkAnalysisInstallStage
 import io.github.mangi.eta.agent.terminal.DebianEnvironmentInstaller
 import io.github.mangi.eta.agent.terminal.DebianEnvironmentState
-import io.github.mangi.eta.agent.terminal.DebianEnvironmentStatus
 import io.github.mangi.eta.agent.terminal.DebianInstallProgress
 import io.github.mangi.eta.agent.terminal.DebianInstallResult
 import io.github.mangi.eta.agent.terminal.DebianInstallStage
@@ -59,20 +58,17 @@ import io.github.mangi.eta.ui.app.launchForegroundExecution
 import io.github.mangi.eta.ui.app.message
 import io.github.mangi.eta.ui.app.rememberDeviceCapabilities
 import io.github.mangi.eta.ui.app.rememberExecutionNotificationRequest
-import io.github.mangi.eta.ui.components.IconTintGreen
 import io.github.mangi.eta.ui.components.MiuixScaffoldPage
+import io.github.mangi.eta.ui.components.PreferenceIcon
 import io.github.mangi.eta.ui.navigation.AppRoute
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.RadioButtonPreference
-import com.composables.icons.lucide.R as LucideR
 
 private enum class InstallTarget {
     BASE,
@@ -301,143 +297,98 @@ internal fun LinuxEnvironmentScreen(
         title = stringResource(R.string.ui_linux_tool_environment_314d22),
         onBack = onBack,
     ) {
-        item(key = "distribution-title") {
-            SmallTitle(stringResource(R.string.linux_distribution_title))
-        }
-        item(key = "distribution-card") {
-            Card(
-                modifier = Modifier
-                    .padding(horizontal = 12.dp)
-                    .padding(bottom = 12.dp),
-            ) {
-                RadioButtonPreference(
-                    title = stringResource(R.string.linux_distribution_alpine),
-                    summary = stringResource(R.string.linux_distribution_alpine_summary),
-                    selected = selectedDistribution == LinuxDistribution.ALPINE,
-                    enabled = busyTarget == null && !kimiWebLaunching,
-                    onClick = {
-                        resultMessage = null
-                        coroutineScope.launch {
-                            LinuxEnvironmentSettingsRepository.select(LinuxDistribution.ALPINE)
-                        }
-                    },
-                )
-                RadioButtonPreference(
-                    title = stringResource(R.string.linux_distribution_debian),
-                    summary = stringResource(R.string.linux_distribution_debian_summary),
-                    selected = selectedDistribution == LinuxDistribution.DEBIAN,
-                    enabled = busyTarget == null && !kimiWebLaunching,
-                    onClick = {
-                        resultMessage = null
-                        coroutineScope.launch {
-                            LinuxEnvironmentSettingsRepository.select(LinuxDistribution.DEBIAN)
-                        }
-                    },
-                )
+        item(key = "status-card") {
+            val version = when (selectedDistribution) {
+                LinuxDistribution.ALPINE -> status.version
+                LinuxDistribution.DEBIAN -> debianStatus.version
             }
+            val activeProgress = when (busyTarget) {
+                InstallTarget.BASE, InstallTarget.TOOLS -> when (selectedDistribution) {
+                    LinuxDistribution.ALPINE -> progress?.summary(context)
+                    LinuxDistribution.DEBIAN -> debianProgress?.summary(context)
+                }
+                InstallTarget.APK_ANALYSIS -> apkAnalysisProgress?.summary(context)
+                else -> profileProgressSummary
+            }
+            LinuxEnvironmentStatusCard(
+                title = listOfNotNull(selectedDistribution.displayName(), version?.takeIf { it.isNotBlank() })
+                    .joinToString(" "),
+                mode = backend.displayName(),
+                summary = when {
+                    requiresRoot -> stringResource(R.string.capability_linux_root_lost)
+                    kimiWebLaunching -> stringResource(R.string.linux_kimi_web_starting)
+                    busyTarget != null -> activeProgress ?: stringResource(R.string.linux_installing)
+                    selectedToolsReady -> stringResource(R.string.linux_environment_tools_ready)
+                    selectedBaseReady -> stringResource(R.string.linux_environment_base_ready)
+                    else -> stringResource(R.string.linux_not_installed) + "\n" + stringResource(
+                        when {
+                            backend == LinuxExecutionBackend.PROOT -> R.string.capability_linux_proot_requirements
+                            selectedDistribution == LinuxDistribution.ALPINE -> R.string.linux_requirements
+                            else -> R.string.linux_debian_requirements
+                        },
+                    )
+                },
+                busy = busyTarget != null || kimiWebLaunching,
+                message = resultMessage,
+                actionText = when {
+                    requiresRoot -> stringResource(R.string.capability_enhancements)
+                    selectedToolsReady -> null
+                    busyTarget != null -> stringResource(R.string.linux_installing)
+                    selectedBaseReady -> stringResource(R.string.linux_install_base_tools)
+                    else -> stringResource(R.string.linux_install_base)
+                },
+                actionEnabled = busyTarget == null && !kimiWebLaunching,
+                onAction = {
+                    if (requiresRoot) onNavigate(AppRoute.SystemEnhance)
+                    else if (selectedBaseReady) installTools() else installBase()
+                },
+            )
         }
-
-        item(key = "backend-title") { SmallTitle(stringResource(R.string.capability_linux_backend)) }
-        item(key = "backend") {
-            Card(modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 12.dp)) {
-                RadioButtonPreference(
-                    title = stringResource(R.string.capability_linux_proot),
-                    summary = stringResource(R.string.capability_linux_proot_summary),
-                    selected = backend == LinuxExecutionBackend.PROOT,
-                    enabled = busyTarget == null && !kimiWebLaunching,
-                    onClick = { coroutineScope.launch {
-                        LinuxEnvironmentSettingsRepository.selectBackend(selectedDistribution, LinuxExecutionBackend.PROOT)
-                    } },
-                )
-                if (capabilities.root.isGranted || backend == LinuxExecutionBackend.CHROOT) {
-                    RadioButtonPreference(
-                        title = stringResource(R.string.capability_linux_chroot),
-                        summary = stringResource(R.string.capability_linux_chroot_summary),
-                        selected = backend == LinuxExecutionBackend.CHROOT,
-                        enabled = busyTarget == null && !kimiWebLaunching && capabilities.root.isGranted,
-                        onClick = { coroutineScope.launch {
-                            LinuxEnvironmentSettingsRepository.selectBackend(selectedDistribution, LinuxExecutionBackend.CHROOT)
-                        } },
-                    )
-                }
-                if (requiresRoot) {
-                    ArrowPreference(
-                        title = stringResource(R.string.capability_enhancements),
-                        summary = stringResource(R.string.capability_linux_root_lost),
-                        onClick = { onNavigate(AppRoute.SystemEnhance) },
-                    )
-                }
+        item(key = "configuration-title") { SmallTitle(stringResource(R.string.linux_environment_configuration)) }
+        item(key = "configuration-card") {
+            LinuxEnvironmentConfiguration(
+                distribution = selectedDistribution,
+                backend = backend,
+                rootGranted = capabilities.root.isGranted,
+                enabled = busyTarget == null && !kimiWebLaunching,
+                onDistributionSelected = { distribution ->
+                    if (busyTarget == null && !kimiWebLaunching && distribution != selectedDistribution) {
+                        resultMessage = null
+                        coroutineScope.launch { LinuxEnvironmentSettingsRepository.select(distribution) }
+                    }
+                },
+                onBackendSelected = { selectedBackend ->
+                    if (busyTarget == null && !kimiWebLaunching && selectedBackend != backend &&
+                        (selectedBackend == LinuxExecutionBackend.PROOT || capabilities.root.isGranted)
+                    ) {
+                        resultMessage = null
+                        coroutineScope.launch {
+                            LinuxEnvironmentSettingsRepository.selectBackend(selectedDistribution, selectedBackend)
+                        }
+                    }
+                },
+            )
+        }
+        item(key = "files-title") { SmallTitle(stringResource(R.string.linux_environment_files)) }
+        item(key = "files-card") {
+            Card(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
                 ArrowPreference(
                     title = stringResource(R.string.capability_workspace),
                     summary = stringResource(R.string.capability_workspace_summary),
+                    startAction = { PreferenceIcon(Icons.Rounded.Folder) },
                     onClick = { onNavigate(AppRoute.Workspace) },
                 )
-            }
-        }
-
-        item(key = "status-title") { SmallTitle(stringResource(R.string.ui_environmental_status_5b32a1)) }
-        item(key = "status-card") {
-            Card(
-                modifier = Modifier
-                    .padding(horizontal = 12.dp)
-                    .padding(bottom = 12.dp),
-            ) {
-                BasicComponent(
-                    title = when (selectedDistribution) {
-                        LinuxDistribution.ALPINE -> status.title(context)
-                        LinuxDistribution.DEBIAN -> debianStatus.title(context)
-                    },
-                    summary = when (selectedDistribution) {
-                        LinuxDistribution.ALPINE -> progress?.summary(context) ?: status.summary(context, backend)
-                        LinuxDistribution.DEBIAN -> debianProgress?.summary(context) ?: debianStatus.summary(context, backend)
-                    },
-                    endActions = {
-                        TextButton(
-                            text = when {
-                                busyTarget == InstallTarget.BASE || busyTarget == InstallTarget.TOOLS ->
-                                    context.getString(R.string.linux_installing)
-                                !selectedBaseReady -> context.getString(R.string.linux_install_base)
-                                !selectedToolsReady -> context.getString(R.string.linux_install_base_tools)
-                                else -> context.getString(R.string.linux_ready)
-                            },
-                            enabled = busyTarget == null && !requiresRoot && !selectedToolsReady,
-                            onClick = {
-                                if (selectedBaseReady) installTools() else installBase()
-                            },
-                        )
-                    },
-                )
-            }
-        }
-
-        if (selectedBaseReady) {
-            item(key = "shared-folders-title") { SmallTitle(stringResource(R.string.shared_folders_title)) }
-            item(key = "shared-folders-card") {
-                Card(
-                    modifier = Modifier
-                        .padding(horizontal = 12.dp)
-                        .padding(bottom = 12.dp),
-                ) {
+                if (selectedBaseReady) {
                     ArrowPreference(
                         title = stringResource(R.string.shared_folders_entry_title),
-                        summary = stringResource(R.string.shared_folders_entry_summary),
-                        startAction = {
-                            TintedIcon(
-                                icon = LucideR.drawable.lucide_ic_folder_open,
-                                tint = IconTintGreen,
-                            )
-                        },
+                        summary = stringResource(R.string.linux_environment_shared_folders_summary),
+                        startAction = { PreferenceIcon(Icons.Rounded.FolderOpen) },
                         onClick = { onNavigate(AppRoute.SharedFolders) },
                     )
                     ArrowPreference(
                         title = stringResource(R.string.linux_files_entry_title),
                         summary = stringResource(R.string.linux_files_entry_summary),
-                        startAction = {
-                            TintedIcon(
-                                icon = LucideR.drawable.lucide_ic_file_text,
-                                tint = IconTintGreen,
-                            )
-                        },
+                        startAction = { PreferenceIcon(Icons.Rounded.Description) },
                         onClick = { onNavigate(AppRoute.LinuxFiles(selectedDistribution.wireName)) },
                     )
                 }
@@ -474,63 +425,69 @@ internal fun LinuxEnvironmentScreen(
                             } else {
                                 stringResource(summaryRes)
                             },
-                            endActions = {
-                                if (isKimi && kimiWebRunning) {
+                            bottomAction = {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    if (isKimi && kimiWebRunning) {
+                                        TextButton(
+                                            text = stringResource(R.string.action_stop),
+                                            enabled = !kimiWebLaunching && !requiresRoot,
+                                            onClick = {
+                                                coroutineScope.launch {
+                                                    val stopped = kimiWebLauncher.stop(selectedDistribution.terminalEnvironment)
+                                                    kimiWebRunning = !stopped
+                                                }
+                                            },
+                                        )
+                                    }
                                     TextButton(
-                                        text = stringResource(R.string.action_stop),
-                                        enabled = !kimiWebLaunching && !requiresRoot,
+                                        text = when {
+                                            isKimi && ready -> stringResource(
+                                                if (kimiWebLaunching) {
+                                                    R.string.linux_kimi_web_starting
+                                                } else if (kimiWebRunning) {
+                                                    R.string.action_open
+                                                } else {
+                                                    R.string.linux_kimi_web_launch
+                                                },
+                                            )
+                                            ready -> stringResource(R.string.linux_installed)
+                                            busyTarget == profileUi.target -> stringResource(R.string.linux_installing)
+                                            else -> stringResource(R.string.linux_install)
+                                        },
+                                        enabled = !requiresRoot && if (isKimi && ready) {
+                                            !kimiWebLaunching && busyTarget == null
+                                        } else {
+                                            busyTarget == null && !ready
+                                        },
                                         onClick = {
-                                            coroutineScope.launch {
-                                                val stopped = kimiWebLauncher.stop(selectedDistribution.terminalEnvironment)
-                                                kimiWebRunning = !stopped
+                                            if (isKimi && ready) {
+                                                launchKimiWeb()
+                                                return@TextButton
+                                            }
+                                            if (busyTarget != null || ready) return@TextButton
+                                            busyTarget = profileUi.target
+                                            resultMessage = null
+                                            val profileTitle = context.getString(profileUi.titleRes)
+                                            launchInstallation {
+                                                val profileInstaller = profileInstallers.getValue(profileUi.target)
+                                                val result = profileInstaller.install { update ->
+                                                    withContext(Dispatchers.Main.immediate) {
+                                                        profileProgressSummary = update.summary(context, profileTitle)
+                                                    }
+                                                }
+                                                profileReady = profileReady +
+                                                    (profileUi.target to profileInstaller.isReady())
+                                                profileProgressSummary = null
+                                                busyTarget = null
+                                                resultMessage = result.toMessage(context, profileTitle)
                                             }
                                         },
                                     )
                                 }
-                                TextButton(
-                                    text = when {
-                                        isKimi && ready -> stringResource(
-                                            if (kimiWebLaunching) {
-                                                R.string.linux_kimi_web_starting
-                                            } else if (kimiWebRunning) {
-                                                R.string.action_open
-                                            } else {
-                                                R.string.linux_kimi_web_launch
-                                            },
-                                        )
-                                        ready -> stringResource(R.string.linux_installed)
-                                        busyTarget == profileUi.target -> stringResource(R.string.linux_installing)
-                                        else -> stringResource(R.string.linux_install)
-                                    },
-                                    enabled = !requiresRoot && if (isKimi && ready) {
-                                        !kimiWebLaunching && busyTarget == null
-                                    } else {
-                                        busyTarget == null && !ready
-                                    },
-                                    onClick = {
-                                        if (isKimi && ready) {
-                                            launchKimiWeb()
-                                            return@TextButton
-                                        }
-                                        if (busyTarget != null || ready) return@TextButton
-                                        busyTarget = profileUi.target
-                                        resultMessage = null
-                                        val profileTitle = context.getString(profileUi.titleRes)
-                                        launchInstallation {
-                                            val profileInstaller = profileInstallers.getValue(profileUi.target)
-                                            val result = profileInstaller.install { update ->
-                                                withContext(Dispatchers.Main.immediate) {
-                                                    profileProgressSummary = update.summary(context, profileTitle)
-                                                }
-                                            }
-                                            profileReady = profileReady +
-                                                (profileUi.target to profileInstaller.isReady())
-                                            profileProgressSummary = null
-                                            busyTarget = null
-                                            resultMessage = result.toMessage(context, profileTitle)
-                                        }
-                                    },
-                                )
                             },
                         )
                     }
@@ -541,77 +498,43 @@ internal fun LinuxEnvironmentScreen(
                         } else {
                             context.getString(R.string.linux_apk_tools_summary)
                         },
-                        endActions = {
-                            TextButton(
-                                text = when {
-                                    apkAnalysisReady -> context.getString(R.string.linux_installed)
-                                    busyTarget == InstallTarget.APK_ANALYSIS -> context.getString(R.string.linux_installing)
-                                    else -> context.getString(R.string.linux_install)
-                                },
-                                enabled = busyTarget == null && !requiresRoot && !apkAnalysisReady,
-                                onClick = {
-                                    if (busyTarget != null || apkAnalysisReady) return@TextButton
-                                    busyTarget = InstallTarget.APK_ANALYSIS
-                                    resultMessage = null
-                                    launchInstallation {
-                                        val result = apkAnalysisInstaller.install { update ->
-                                            withContext(Dispatchers.Main.immediate) {
-                                                apkAnalysisProgress = update
+                        bottomAction = {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                TextButton(
+                                    text = when {
+                                        apkAnalysisReady -> context.getString(R.string.linux_installed)
+                                        busyTarget == InstallTarget.APK_ANALYSIS -> context.getString(R.string.linux_installing)
+                                        else -> context.getString(R.string.linux_install)
+                                    },
+                                    enabled = busyTarget == null && !requiresRoot && !apkAnalysisReady,
+                                    onClick = {
+                                        if (busyTarget != null || apkAnalysisReady) return@TextButton
+                                        busyTarget = InstallTarget.APK_ANALYSIS
+                                        resultMessage = null
+                                        launchInstallation {
+                                            val result = apkAnalysisInstaller.install { update ->
+                                                withContext(Dispatchers.Main.immediate) {
+                                                    apkAnalysisProgress = update
+                                                }
                                             }
+                                            apkAnalysisReady = apkAnalysisInstaller.isReady()
+                                            apkAnalysisProgress = null
+                                            busyTarget = null
+                                            resultMessage = result.toMessage(context)
                                         }
-                                        apkAnalysisReady = apkAnalysisInstaller.isReady()
-                                        apkAnalysisProgress = null
-                                        busyTarget = null
-                                        resultMessage = result.toMessage(context)
-                                    }
-                                },
-                            )
+                                    },
+                                )
+                            }
                         },
                     )
                 }
             }
         }
-
-        resultMessage?.let { message ->
-            item(key = "result-card") {
-                Card(
-                    modifier = Modifier
-                        .padding(horizontal = 12.dp)
-                        .padding(bottom = 12.dp),
-                ) {
-                    BasicComponent(title = message)
-                }
-            }
-        }
     }
-}
-
-private fun AlpineEnvironmentStatus.title(context: Context): String = when (state) {
-    AlpineEnvironmentState.NOT_INSTALLED -> context.getString(R.string.linux_not_installed)
-    AlpineEnvironmentState.BASE_READY -> context.getString(R.string.linux_base_ready)
-    AlpineEnvironmentState.READY -> context.getString(R.string.linux_alpine_ready, version.orEmpty()).trim()
-}
-
-private fun AlpineEnvironmentStatus.summary(context: Context, backend: LinuxExecutionBackend): String = when (state) {
-    AlpineEnvironmentState.NOT_INSTALLED -> context.getString(
-        if (backend == LinuxExecutionBackend.PROOT) R.string.capability_linux_proot_requirements else R.string.linux_requirements,
-    )
-    AlpineEnvironmentState.BASE_READY -> context.getString(R.string.linux_tools_incomplete)
-    AlpineEnvironmentState.READY -> context.getString(R.string.linux_agent_ready_summary)
-}
-
-private fun DebianEnvironmentStatus.title(context: Context): String = when (state) {
-    DebianEnvironmentState.NOT_INSTALLED -> context.getString(R.string.linux_debian_not_installed)
-    DebianEnvironmentState.BASE_READY -> context.getString(R.string.linux_debian_base_ready)
-    DebianEnvironmentState.READY -> context.getString(R.string.linux_debian_ready, version.orEmpty()).trim()
-}
-
-private fun DebianEnvironmentStatus.summary(context: Context, backend: LinuxExecutionBackend): String = when (state) {
-    DebianEnvironmentState.NOT_INSTALLED -> context.getString(
-        if (backend == LinuxExecutionBackend.PROOT) R.string.capability_linux_proot_requirements else R.string.linux_debian_requirements,
-    )
-    DebianEnvironmentState.BASE_READY -> context.getString(R.string.linux_debian_tools_incomplete)
-    DebianEnvironmentState.READY -> context.getString(R.string.linux_debian_agent_ready_summary)
 }
 
 private fun Long.toReadableSize(context: Context): String = Formatter.formatShortFileSize(context, this)
@@ -755,21 +678,3 @@ private fun ApkAnalysisInstallStage.displayName(context: Context): String = cont
         ApkAnalysisInstallStage.COMPLETE -> R.string.linux_apk_stage_complete
     },
 )
-
-@Composable
-private fun TintedIcon(icon: Int, tint: Color) {
-    Box(
-        modifier = Modifier
-            .padding(end = 12.dp)
-            .size(32.dp)
-            .background(tint, CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            painter = painterResource(icon),
-            contentDescription = null,
-            modifier = Modifier.size(18.dp),
-            tint = Color.White,
-        )
-    }
-}

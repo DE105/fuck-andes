@@ -1047,7 +1047,6 @@
   <string name="skills_replace">取代</string>
   <string name="skills_delete_summary">刪除「%1$s」後，需要重新安裝才能復原。</string>
   <string name="skills_no_description">沒有說明</string>
-  <string name="skills_delete_named">刪除 %1$s</string>
   <string name="browser_no_external_app">沒有應用程式可以開啟目前的網頁</string>
   <string name="browser_reset">重設</string>
   <string name="browser_back">上一頁</string>
