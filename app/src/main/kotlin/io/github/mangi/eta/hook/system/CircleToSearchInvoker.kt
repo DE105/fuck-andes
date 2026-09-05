@@ -51,7 +51,11 @@ internal object CircleToSearchInvoker {
         return binder.isBinderAlive
     }
 
-    fun trigger(logger: ModuleLogger, source: String): Boolean {
+    fun trigger(
+        logger: ModuleLogger,
+        source: String,
+        entryPoint: Int = ModuleConfig.CIRCLE_TO_SEARCH_ENTRYPOINT,
+    ): Boolean {
         val binder = getContextualSearchBinder() ?: return false
         return runCatching {
             // 直接调用系统 binder，避免再走 OEM OCR/识屏分发链。
@@ -61,11 +65,11 @@ internal object CircleToSearchInvoker {
             if (startContextualSearch.hasConfigParameter) {
                 startContextualSearch.method.invoke(
                     service,
-                    ModuleConfig.CIRCLE_TO_SEARCH_ENTRYPOINT,
+                    entryPoint,
                     null
                 )
             } else {
-                startContextualSearch.method.invoke(service, ModuleConfig.CIRCLE_TO_SEARCH_ENTRYPOINT)
+                startContextualSearch.method.invoke(service, entryPoint)
             }
             logger.debug { "$source: 已触发 Circle to Search" }
             true

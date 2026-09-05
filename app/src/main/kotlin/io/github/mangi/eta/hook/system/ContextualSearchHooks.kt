@@ -6,6 +6,8 @@ import io.github.mangi.eta.core.HookRegistrar
 import io.github.mangi.eta.core.ModuleConfig
 import io.github.mangi.eta.core.ModuleLogger
 
+import io.github.mangi.eta.config.Prefs
+import android.content.pm.ApplicationInfo
 import android.content.Context
 import android.os.Binder
 import android.os.IBinder
@@ -20,10 +22,29 @@ internal object ContextualSearchHooks {
     ): HookInstallation {
         val hooks = HookRegistrar(module, rootLogger, "ContextualSearch")
         return hooks.install {
-            // ContextualSearch 服务补齐是一圈即搜的底层依赖（被 ColorOS 砍掉），不可选。
+            // 服务可能被 ROM 的资源配置禁用；先尝试原生启动，再保留启动尾段补齐。
+            hookContextualSearchConfig(hooks, classLoader)
             hookContextualSearchBootstrap(module, hooks, classLoader)
             hookContextualSearchPackage(hooks, classLoader)
             hookContextualSearchPermission(hooks, classLoader)
+        }
+    }
+
+    private fun hookContextualSearchConfig(hooks: HookRegistrar, classLoader: ClassLoader) {
+        val server = HookSupport.findClassOrNull(classLoader, ModuleConfig.SYSTEM_SERVER_CLASS)
+        val resources = HookSupport.findClassOrNull(classLoader, "com.android.internal.R\$string")
+        val resourceId = resources?.let {
+            HookSupport.findField(it, "config_defaultContextualSearchPackageName")?.getInt(null)
+        }
+        val method = server?.let {
+            HookSupport.findMethod(it, "deviceHasConfigString", Context::class.java, Int::class.javaPrimitiveType!!)
+        }
+        if (resourceId == null || resourceId == 0 || method == null || method.returnType != Boolean::class.javaPrimitiveType) {
+            hooks.skipped("system.contextual-search-config", "SystemServer.deviceHasConfigString", "未提供 Contextual Search 资源启动条件，保留尾段补启动")
+            return
+        }
+        hooks.intercept("system.contextual-search-config", method, "SystemServer.deviceHasConfigString") { chain ->
+            if (chain.getArg(1) == resourceId) true else chain.proceed()
         }
     }
 
@@ -132,7 +153,21 @@ internal object ContextualSearchHooks {
             null
         } ?: return false
         return packages.contains(ModuleConfig.SYSTEM_UI_PACKAGE) ||
-            packages.contains(ModuleConfig.COLOR_DIRECT_PACKAGE)
+            packages.contains(ModuleConfig.COLOR_DIRECT_PACKAGE) ||
+            (Prefs.isEnabled(Prefs.Keys.GESTURE_BAR_CIRCLE_TO_SEARCH) &&
+                packages.any { packageName ->
+                    packageName in ModuleConfig.XIAOMI_LAUNCHER_PACKAGES &&
+                        isSystemPackage(context, packageName)
+                })
+    }
+
+    private fun isSystemPackage(context: Context, packageName: String): Boolean = try {
+        val info = context.packageManager.getApplicationInfo(packageName, 0)
+        info.flags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+    } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
+        false
+    } catch (_: SecurityException) {
+        false
     }
 
     private fun ensureContextualSearchService(

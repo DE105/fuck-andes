@@ -103,7 +103,9 @@ Under **System assistant takeover** in Eta's Settings, the ColorOS long-press ta
 | Gemini | Use Google's existing system-assistant path | Switch to Gemini when the option is enabled |
 | Eta | Open Eta's native text-assistant panel | Switch to Eta when the option is enabled |
 
-New installations default to Breeno; users who had enabled the former **Launch Gemini with the power button** option remain on Gemini. Automatic default-assistant configuration is a separate option and applies only to Gemini and Eta. If the selected target cannot start, that long press immediately falls back to Breeno. HyperOS power-button routing is not implemented yet.
+New installations default to Breeno; users who had enabled the former **Launch Gemini with the power button** option remain on Gemini. Automatic default-assistant configuration is a separate option and applies only to Gemini and Eta. If the selected target cannot start, that long press immediately falls back to Breeno.
+
+HyperOS 电源键与横条长按已接入源码适配，尚未经过真机验证；桌面作用域、服务依赖与触发条件见 [HyperOS 系统入口适配](docs/HYPEROS_SYSTEM_ENTRY.md)。
 
 ### Breeno and Super XiaoAI
 

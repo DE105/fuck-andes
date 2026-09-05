@@ -94,29 +94,31 @@ Eta 把完整的计算环境装进手机：Android `user` / `root` Shell 之外�
 
 Eta 通过 Android 标准 `VoiceInteractionService` 注册为可选数字助理：在设置页点击“Eta 系统助手”，再在 Android 的数字助理选择器中选中 Eta 即可。唤起后显示全屏助理面板并自动聚焦键盘输入框，支持流式回答、连续追问、取消与结果归档；可选择把唤起前的当前屏幕作为下一条消息的图片上下文。当前浮窗不提供语音识别或语音播报。
 
-### ColorOS 电源键目标
+### ColorOS / HyperOS 电源键目标
 
-在设置页的“系统助手接管”中可选择 ColorOS 长按电源键的目标：
+在设置页的“系统助手接管”中可选择长按电源键的目标（HyperOS 为待真机验证的适配）：
 
 | 目标     | 长按后的行为               | 默认助理自动设置        |
 | -------- | -------------------------- | ----------------------- |
-| 小布助手 | 保留 ColorOS 原始行为      | 不修改系统默认助理      |
+| 系统默认助手 | 保留小布或超级小爱的原始入口 | 不修改系统默认助理      |
 | Gemini   | 沿用 Google 的系统助手链路 | 开关开启时切换为 Gemini |
 | Eta      | 打开 Eta 全屏键盘助理浮窗  | 开关开启时切换为 Eta    |
 
-新安装默认保持小布；旧版已经开启“长按电源键唤起 Gemini”的用户会继续使用 Gemini。“自动设置默认助理”是独立开关，只对 Gemini 和 Eta 生效。当前目标无法启动时，本次长按会立即回退到小布；HyperOS 电源键入口尚未接入。
+新安装默认保持系统原始助手；旧版已经开启“长按电源键唤起 Gemini”的用户会继续使用 Gemini。“自动设置默认助理”是独立开关，只对 Gemini 和 Eta 生效。当前目标无法启动时，本次长按会立即回退到厂商原始逻辑。HyperOS 只接管电源键的语音助手快捷动作，需要系统已启用电源键唤醒助手，且目标已设为当前用户的默认数字助理；不修改关机、SOS 或其他快捷动作。
 
 ### 小布与超级小爱
 
 - **小布（ColorOS）**：接管小布对话入口，继承当前房间的文本上下文并解析图片输入，交给同一套 Agent Runtime 处理；支持 BYOK，默认只在 `/agent` 前缀下触发
 - **超级小爱（HyperOS）**：支持文本与单张本地图片或截图，前缀、图片解析或任务入队任一前置检查失败时回到原生链路；已在 `7.13.32.0016`（`507013032`）通过真机验证
 
-### Gemini 与一圈即搜（ColorOS）
+### Gemini 与一圈即搜（ColorOS / HyperOS）
 
 这两项功能不依赖 ColorOS 原本提供的入口，由 Eta 创建或修复：
 
 - **Gemini 解锁**：Google App 设备资格补齐、系统化、默认数字助理接管、电源键入口，以及锁屏/亮屏语音输入和息屏热词补偿
 - **一圈即搜**：启用并修正原本不可用的 Android `contextual_search` 服务与 Google App 资格，再把手势条长按和双指识屏改造成触发入口，不改系统文件
+
+HyperOS 通过小米桌面或国际版桌面的长按回调触发一圈即搜，旧版桌面在没有原生长按检测时补充触摸检测，复用“手势条长按触发一圈即搜”开关。需额外勾选所用桌面的作用域。当前实现依赖 ROM 提供 `ContextualSearchManagerService`，未提供该类或 Google 搜索入口时保留原行为；HyperOS 电源键和横条入口尚未经过真机验证。具体 Hook、版本探测与验证边界见 [HyperOS 系统入口适配](docs/HYPEROS_SYSTEM_ENTRY.md)。
 
 Gemini 解锁与一圈即搜是 Eta 早期建立的 Google 能力解锁功能，目前不是开发重点，但仍会维护。
 
@@ -141,7 +143,7 @@ BYOK（Bring Your Own Key）意味着 Agent 能力跟随你选择的模型，而
 4. 在系统设置中开启 Eta 无障碍服务
 5. 可选系统入口：
    - Eta 原生数字助理：在设置页点击“Eta 系统助手”，并在 Android 系统选择器中将 Eta 设为默认数字助理
-   - ColorOS 电源键切换、厂商助手接管、ColorOS 系统记忆、Gemini 与一圈即搜：在支持 libxposed API 102 的 LSPosed 环境中启用模块，按需勾选 `system`、SystemUI、Google App、小布识屏、小布助手、小布记忆和超级小爱作用域，然后重启手机
+   - ColorOS / HyperOS 电源键切换、厂商助手接管、ColorOS 系统记忆、Gemini 与一圈即搜：在支持 libxposed API 102 的 LSPosed 环境中启用模块，按需勾选 `system`、SystemUI、Google App、小布识屏、小布助手、小布记忆、超级小爱，以及 HyperOS 所用的小米桌面（`com.miui.home`）或国际版桌面（`com.mi.android.globallauncher`）作用域，然后重启手机
 
 </details>
 
