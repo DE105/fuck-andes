@@ -138,7 +138,7 @@ internal object AgentPendingResultRecovery {
             ?.substringBefore('-')
             ?.toIntOrNull()
 
-    private fun supplementMessageId(runId: String, index: Int): String =
+    internal fun supplementMessageId(runId: String, index: Int): String =
         "user-$runId-supplement-$index"
 
     private fun interruptedNoticeId(runId: String): String = "interrupted-$runId"

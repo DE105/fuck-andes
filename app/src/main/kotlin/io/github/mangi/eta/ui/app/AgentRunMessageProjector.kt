@@ -4,14 +4,40 @@ import android.os.SystemClock
 import io.github.mangi.eta.agent.runtime.AgentEvent
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
 import io.github.mangi.eta.ui.model.AgentMessageUi
+import io.github.mangi.eta.ui.model.SystemNoticeMessageUi
 import io.github.mangi.eta.ui.model.ThinkingMessageUi
 import io.github.mangi.eta.ui.model.ToolActivityMessageUi
 import io.github.mangi.eta.ui.model.ToolActivityStatusUi
+import io.github.mangi.eta.ui.model.UserMessageUi
 
 internal class AgentRunMessageProjector(
     private val nowElapsedRealtime: () -> Long = { SystemClock.elapsedRealtime() },
 ) {
     private val thinkingStartedAt = mutableMapOf<String, Long>()
+
+    /** 回放从该 run 的空轨迹重建；仅重排有回放事件的补充输入，旧 handoff 独有的输入必须保留。 */
+    fun resetForReplay(
+        runId: String,
+        messages: List<AgentChatMessageUi>,
+        replaySupplementIndexes: Set<Int> = emptySet(),
+    ): List<AgentChatMessageUi> {
+        if (runId.isBlank()) return messages
+        clearRun(runId)
+        val replaySupplementIds = replaySupplementIndexes.mapTo(mutableSetOf()) { index ->
+            AgentPendingResultRecovery.supplementMessageId(runId, index)
+        }
+        return messages.filterNot { message ->
+            when (message) {
+                is AgentMessageUi -> isAssistantMessageForRun(message.id, runId)
+                is ThinkingMessageUi -> message.id.startsWith("$runId-thinking-")
+                is ToolActivityMessageUi -> message.id.startsWith("$runId-tool-")
+                is SystemNoticeMessageUi ->
+                    isAssistantMessageForRun(message.id, runId) || message.id == "interrupted-$runId"
+                is UserMessageUi -> message.id in replaySupplementIds
+                else -> false
+            }
+        }
+    }
 
     fun startAssistantBlock(
         runId: String,
@@ -144,6 +170,20 @@ internal class AgentRunMessageProjector(
             }
         }
 
+    /** 终态不依赖各块结束事件全部到齐；缺少工具结果时只能标为未知，不能推断执行成功。 */
+    fun finalizeRun(runId: String, messages: List<AgentChatMessageUi>): List<AgentChatMessageUi> =
+        finalizeText(runId, finalizeThinking(runId, messages)).map { message ->
+            if (
+                message is ToolActivityMessageUi &&
+                message.id.startsWith("$runId-tool-") &&
+                message.status == ToolActivityStatusUi.Running
+            ) {
+                message.copy(status = ToolActivityStatusUi.Unknown)
+            } else {
+                message
+            }
+        }
+
     fun finalizeThinkingRound(
         runId: String,
         round: Int,
@@ -180,7 +220,7 @@ internal class AgentRunMessageProjector(
         messages: List<AgentChatMessageUi>,
     ): List<AgentChatMessageUi> =
         messages.map { message ->
-            if (message is AgentMessageUi && message.id.startsWith(assistantMessagePrefix(runId))) {
+            if (message is AgentMessageUi && isAssistantMessageForRun(message.id, runId)) {
                 message.copy(
                     content = message.content.trimEnd(),
                     isStreaming = false,
@@ -423,6 +463,10 @@ internal class AgentRunMessageProjector(
 
     private fun assistantMessagePrefix(runId: String): String =
         "assistant-$runId-"
+
+    private fun isAssistantMessageForRun(messageId: String, runId: String): Boolean =
+        messageId == "assistant-$runId" ||
+            messageId.startsWith(assistantMessagePrefix(runId))
 
     private fun thinkingMessageId(runId: String, round: Int, index: Int): String =
         "$runId-thinking-$round-$index"

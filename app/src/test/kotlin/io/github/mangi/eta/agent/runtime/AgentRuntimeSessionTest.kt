@@ -12,6 +12,87 @@ import org.junit.Test
 
 class AgentRuntimeSessionTest {
     @Test
+    fun replayBoundaryPrecedesConcurrentLiveEventsAndTerminalResult() {
+        val deliveries = Collections.synchronizedList(mutableListOf<String>())
+        val replayBoundaryReached = CountDownLatch(1)
+        val releaseReplayBoundary = CountDownLatch(1)
+        val producerStarted = CountDownLatch(1)
+        val session = AgentRuntimeSession(runId = "run-boundary")
+        session.emit(AgentEvent.RoundStarted(round = 1, messageCount = 1))
+        val attached = AtomicBoolean(false)
+        val attachThread = Thread {
+            attached.set(
+                session.attach(
+                    eventSink = { event -> deliveries += "round-${(event as AgentEvent.RoundStarted).round}" },
+                    resultSink = { deliveries += "result" },
+                    onReplayComplete = {
+                        replayBoundaryReached.countDown()
+                        assertTrue(releaseReplayBoundary.await(2, TimeUnit.SECONDS))
+                        deliveries += "replay-complete"
+                    },
+                )
+            )
+        }.apply { isDaemon = true }
+        val producerThread = Thread {
+            producerStarted.countDown()
+            session.emit(AgentEvent.RoundStarted(round = 2, messageCount = 2))
+            session.complete(
+                AgentRuntimeWire.RunResult(runId = "run-boundary", ok = true, content = "完成")
+            )
+        }.apply { isDaemon = true }
+
+        attachThread.start()
+        try {
+            assertTrue(replayBoundaryReached.await(1, TimeUnit.SECONDS))
+            producerThread.start()
+            assertTrue(producerStarted.await(1, TimeUnit.SECONDS))
+            assertEquals(listOf("round-1"), deliveries.toList())
+        } finally {
+            releaseReplayBoundary.countDown()
+            attachThread.join(2_000)
+            producerThread.join(2_000)
+        }
+
+        assertTrue(attached.get())
+        assertEquals(listOf("round-1", "replay-complete", "round-2", "result"), deliveries)
+    }
+
+    @Test
+    fun emptyReplayStillAcknowledgesBeforeLaterEvents() {
+        val deliveries = mutableListOf<String>()
+        val session = AgentRuntimeSession(runId = "run-empty")
+
+        assertTrue(
+            session.attach(
+                eventSink = { deliveries += "event" },
+                resultSink = { deliveries += "result" },
+                onReplayComplete = { deliveries += "replay-complete" },
+            )
+        )
+        session.emit(AgentEvent.RoundStarted(round = 1, messageCount = 1))
+
+        assertEquals(listOf("replay-complete", "event"), deliveries)
+    }
+
+    @Test
+    fun terminalSessionRejectsAttachWithoutAcknowledgingReplay() {
+        val deliveries = mutableListOf<String>()
+        val session = AgentRuntimeSession(runId = "run-terminal")
+        session.complete(
+            AgentRuntimeWire.RunResult(runId = "run-terminal", ok = true, content = "完成")
+        )
+
+        assertFalse(
+            session.attach(
+                eventSink = { deliveries += "event" },
+                resultSink = { deliveries += "result" },
+                onReplayComplete = { deliveries += "replay-complete" },
+            )
+        )
+        assertTrue(deliveries.isEmpty())
+    }
+
+    @Test
     fun replacementSubscriberReceivesSafeReplayThenLiveEventsAndResult() {
         val firstEvents = mutableListOf<AgentEvent>()
         val firstResults = mutableListOf<AgentRuntimeWire.RunResult>()

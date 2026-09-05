@@ -564,7 +564,12 @@ internal class AgentRuntimeService : Service(), LifecycleOwner, SavedStateRegist
             session.attach(
                 eventSink = { event -> sendEventTo(replyTo, event) },
                 resultSink = { result -> sendResultTo(replyTo, result) },
+                onReplayComplete = { sendAttachRunResponse(runId, replyTo, attached = true) },
             )
+        if (!attached) sendAttachRunResponse(runId, replyTo, attached = false)
+    }
+
+    private fun sendAttachRunResponse(runId: String, replyTo: Messenger?, attached: Boolean) {
         runCatching {
             val msg = Message.obtain(null, AgentRuntimeWire.MSG_ATTACH_RUN_RESPONSE)
             msg.data = AgentRuntimeWire.attachRunResponseBundle(runId, attached)

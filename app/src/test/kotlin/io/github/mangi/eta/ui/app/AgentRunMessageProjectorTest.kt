@@ -3,6 +3,8 @@ package io.github.mangi.eta.ui.app
 import io.github.mangi.eta.agent.runtime.AgentEvent
 import io.github.mangi.eta.ui.model.AgentChatMessageUi
 import io.github.mangi.eta.ui.model.AgentMessageUi
+import io.github.mangi.eta.ui.model.SystemNoticeCode
+import io.github.mangi.eta.ui.model.SystemNoticeMessageUi
 import io.github.mangi.eta.ui.model.ThinkingMessageUi
 import io.github.mangi.eta.ui.model.ToolActivityMessageUi
 import io.github.mangi.eta.ui.model.ToolActivityStatusUi
@@ -13,6 +15,169 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AgentRunMessageProjectorTest {
+    @Test
+    fun runCompletionFinalizesUnclosedBlocksAndUnknownToolWithoutChangingOtherRuns() {
+        val projector = AgentRunMessageProjector(nowElapsedRealtime = { 1_000L })
+        val runId = "run-final"
+        val knownTools = listOf(
+            ToolActivityMessageUi(
+                id = "$runId-tool-1-call-success",
+                toolName = "observe_screen",
+                status = ToolActivityStatusUi.Success,
+                argumentsSummary = "{}",
+                resultSummary = "完成",
+            ),
+            ToolActivityMessageUi(
+                id = "$runId-tool-1-call-failed",
+                toolName = "run_command",
+                status = ToolActivityStatusUi.Failed,
+                argumentsSummary = "{}",
+                resultSummary = "执行失败",
+            ),
+        )
+        val otherRunMessages = listOf(
+            AgentMessageUi(id = "assistant-run-other-1-0", content = "仍在输出", isStreaming = true),
+            ThinkingMessageUi(id = "run-other-thinking-1-0", content = "仍在思考", isStreaming = true),
+            ToolActivityMessageUi(
+                id = "run-other-tool-1-call-1",
+                toolName = "observe_screen",
+                status = ToolActivityStatusUi.Running,
+                argumentsSummary = "{}",
+            ),
+        )
+        val unfinishedTool = ToolActivityMessageUi(
+            id = "$runId-tool-1-call-unknown",
+            toolName = "run_command",
+            status = ToolActivityStatusUi.Running,
+            argumentsSummary = "{}",
+        )
+        val messages = otherRunMessages + knownTools + listOf(
+            AgentMessageUi(id = "assistant-$runId", content = "", isStreaming = true),
+            AgentMessageUi(id = "assistant-$runId-1-0", content = "回答\n\n", isStreaming = true),
+            ThinkingMessageUi(id = "$runId-thinking-1-0", content = "思考", isStreaming = true),
+            unfinishedTool,
+        )
+
+        val finalized = projector.finalizeRun(runId, messages)
+
+        assertEquals(otherRunMessages + knownTools, finalized.take(otherRunMessages.size + knownTools.size))
+        val assistantMessages = finalized.filterIsInstance<AgentMessageUi>()
+            .filter { it.id.startsWith("assistant-$runId") }
+        assertTrue(assistantMessages.all { !it.isStreaming && it.renderMarkdown })
+        assertEquals("回答", assistantMessages.last().content)
+        val thinking = finalized.filterIsInstance<ThinkingMessageUi>().single { it.id.startsWith(runId) }
+        assertFalse(thinking.isStreaming)
+        assertTrue(thinking.collapsed)
+        assertEquals(unfinishedTool.copy(status = ToolActivityStatusUi.Unknown), finalized.last())
+    }
+
+    @Test
+    fun replayResetRemovesOnlyRebuildableTraceAndExplicitlyReplayedSupplements() {
+        val projector = AgentRunMessageProjector(nowElapsedRealtime = { 1_000L })
+        val runId = "run-replay"
+        val user = UserMessageUi(
+            id = "user-$runId",
+            content = "分析截图",
+            images = listOf("image-preview"),
+        )
+        val legacySupplement = UserMessageUi(id = "user-$runId-supplement-1", content = "原始补充")
+        val replayedSupplement = UserMessageUi(id = "user-$runId-supplement-2", content = "继续检查")
+        val otherRunMessages = listOf(
+            UserMessageUi(id = "user-other-run", content = "之前的问题"),
+            AgentMessageUi(id = "assistant-other-run-1-0", content = "之前的回答"),
+            ThinkingMessageUi(id = "other-run-thinking-1-0", content = "之前的思考", isStreaming = false),
+            ToolActivityMessageUi(
+                id = "other-run-tool-1-call-1",
+                toolName = "observe_screen",
+                status = ToolActivityStatusUi.Success,
+                argumentsSummary = "{}",
+            ),
+            UserMessageUi(id = "user-other-run-supplement-2", content = "之前的补充"),
+        )
+        val messages = otherRunMessages + listOf(
+            user,
+            AgentMessageUi(id = "assistant-$runId", content = "", isStreaming = true),
+            AgentMessageUi(id = "assistant-$runId-1-0", content = "半截回答", isStreaming = true),
+            ThinkingMessageUi(id = "$runId-thinking-1-fallback", content = "半截思考", isStreaming = true),
+            ToolActivityMessageUi(
+                id = "$runId-tool-1-call-1",
+                toolName = "observe_screen",
+                status = ToolActivityStatusUi.Unknown,
+                argumentsSummary = "{}",
+            ),
+            legacySupplement,
+            replayedSupplement,
+            SystemNoticeMessageUi(id = "assistant-$runId-2", code = SystemNoticeCode.RuntimeFailed),
+            SystemNoticeMessageUi(id = "interrupted-$runId", code = SystemNoticeCode.Interrupted),
+        )
+
+        val reset = projector.resetForReplay(runId, messages, replaySupplementIndexes = setOf(2))
+
+        assertEquals(otherRunMessages + listOf(user, legacySupplement), reset)
+        assertEquals(reset, projector.resetForReplay(runId, reset, replaySupplementIndexes = setOf(2)))
+    }
+
+    @Test
+    fun repeatedReplayRebuildsTextReasoningAndToolsWithoutAccumulatingContent() {
+        val projector = AgentRunMessageProjector(nowElapsedRealtime = { 1_000L })
+        val runId = "run-repeat"
+        val user = UserMessageUi(id = "user-$runId", content = "看屏幕")
+        val toolStart = AgentEvent.ToolStarted(
+            round = 1,
+            toolCallId = "call-1",
+            name = "observe_screen",
+            argsPreview = "{}",
+        )
+        val toolEnd = AgentEvent.ToolFinished(
+            round = 1,
+            toolCallId = "call-1",
+            name = "observe_screen",
+            resultSummary = "完成",
+            imageCount = 0,
+            imageBytes = 0,
+            success = true,
+        )
+        var messages: List<AgentChatMessageUi> = listOf(user)
+
+        repeat(3) {
+            messages = projector.resetForReplay(runId, messages)
+            messages = projector.appendReasoningDelta(runId, round = 1, index = 0, delta = "先检查", messages)
+            messages = projector.finalizeThinking(runId, messages)
+            messages = projector.startTool(runId, toolStart, messages)
+            messages = projector.finishTool(runId, toolEnd, messages)
+            messages = projector.appendTextDelta(runId, round = 2, index = 0, delta = "检查", messages)
+            messages = projector.appendTextDelta(runId, round = 2, index = 0, delta = "完成", messages)
+            messages = projector.finalizeText(runId, messages)
+
+            assertEquals(4, messages.size)
+            assertEquals(user, messages.first())
+            assertEquals("先检查", messages.filterIsInstance<ThinkingMessageUi>().single().content)
+            assertEquals("检查完成", messages.filterIsInstance<AgentMessageUi>().single().content)
+            assertEquals(ToolActivityStatusUi.Success, messages.filterIsInstance<ToolActivityMessageUi>().single().status)
+        }
+    }
+
+    @Test
+    fun replayResetClearsOnlyThatRunsThinkingClockAndKeepsUnreplayedUserInputs() {
+        var now = 1_000L
+        val projector = AgentRunMessageProjector(nowElapsedRealtime = { now })
+        val supplement = UserMessageUi(id = "user-run-reset-supplement-1", content = "保留这条补充")
+        var messages: List<AgentChatMessageUi> = listOf(supplement)
+        messages = projector.appendReasoningDelta("run-reset", round = 1, index = 0, delta = "先前思考", messages)
+        messages = projector.appendReasoningDelta("run-other", round = 1, index = 0, delta = "其他思考", messages)
+        now = 9_000L
+
+        messages = projector.resetForReplay("run-reset", messages)
+        messages = projector.appendReasoningDelta("run-reset", round = 1, index = 0, delta = "恢复思考", messages)
+        now = 11_000L
+        messages = projector.finalizeThinking("run-reset", messages)
+        messages = projector.finalizeThinking("run-other", messages)
+
+        assertTrue(messages.contains(supplement))
+        assertEquals(2, messages.filterIsInstance<ThinkingMessageUi>().single { it.id.startsWith("run-reset-") }.elapsedSeconds)
+        assertEquals(10, messages.filterIsInstance<ThinkingMessageUi>().single { it.id.startsWith("run-other-") }.elapsedSeconds)
+    }
+
     @Test
     fun projectsReasoningAndToolsByRoundAndToolCallId() {
         var now = 1_000L

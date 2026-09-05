@@ -52,15 +52,17 @@ internal class AgentRuntimeSession(
         }
 
     /**
-     * Activity 被移出任务栈后 Runtime 仍可能继续执行。新 UI 先重放安全事件，再加入实时订阅，
-     * 两步在同一把锁内完成，避免重放与实时流之间出现缺口。
+     * Activity 被移出任务栈后 Runtime 仍可能继续执行。安全历史回放、完成确认和实时订阅
+     * 共用同一把锁，保证客户端收到确认前的事件都是历史，新增事件与终态不会越过边界。
      */
     fun attach(
         eventSink: (AgentEvent) -> Unit,
         resultSink: (AgentRuntimeWire.RunResult) -> Unit,
+        onReplayComplete: () -> Unit = {},
     ): Boolean = lock.withLock {
         if (state == State.TERMINAL) return false
         replayEvents.forEach(eventSink)
+        onReplayComplete()
         subscribers += Subscriber(eventSink, resultSink)
         true
     }

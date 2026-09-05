@@ -12,6 +12,7 @@ import android.widget.Toast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import io.github.mangi.eta.EtaApp
 import io.github.mangi.eta.R
 import io.github.mangi.eta.agent.accessibility.AgentAccessibilityService
@@ -546,7 +547,7 @@ internal class AgentAppState(
 
         runConversationIds[runId] = conversationId
         updateConversation(conversationId, existing.copy(isStreaming = true))
-        checkpoint.events.forEach { event -> applyRunEvent(runId, event) }
+        restoreRunEvents(runId, checkpoint.events)
         flushPendingRunDelta(runId)
         updateRunTrace(runId) { messages ->
             val finalizedThinking = runMessageProjector.finalizeThinking(runId, messages)
@@ -566,7 +567,7 @@ internal class AgentAppState(
                     )
                 }
             } else {
-                finalizedText
+                runMessageProjector.finalizeRun(runId, finalizedText)
             }
         }
         setConversationStreaming(runId, false)
@@ -591,7 +592,12 @@ internal class AgentAppState(
         refreshConversationSummaries()
         currentRunJob = scope.launch(Dispatchers.IO) {
             val client = AgentRuntimeClient(appContext, AndroidAgentLogger)
-            when (val outcome = client.attachRun(runId) { event -> enqueueRunEvent(runId, event) }) {
+            val outcome = client.attachRun(
+                runId = runId,
+                onReplay = { events -> restoreRunEvents(runId, events) },
+                onEvent = { event -> enqueueRunEvent(runId, event) },
+            )
+            when (outcome) {
                 is AgentRuntimeClient.AttachOutcome.Completed -> withContext(Dispatchers.Main) {
                     applyRunResult(
                         runId = runId,
@@ -1570,6 +1576,23 @@ internal class AgentAppState(
         }
     }
 
+    private fun restoreRunEvents(runId: String, events: List<AgentEvent>) {
+        // 恢复是完整快照：先清除同一 run 的旧投影，再一次发布，避免历史增量重复追加
+        // 或中途的 Running 状态使已结束的思考重新展开、播放动画。
+        Snapshot.withMutableSnapshot {
+            flushPendingRunDelta(runId)
+            updateMessages(runId, updateTimestamp = false) { messages ->
+                runMessageProjector.resetForReplay(
+                    runId = runId,
+                    messages = messages,
+                    replaySupplementIndexes = events.filterIsInstance<AgentEvent.UserSupplementReceived>()
+                        .mapTo(mutableSetOf()) { it.index },
+                )
+            }
+            events.forEach { event -> applyRunEvent(runId, event, persistSupplement = false) }
+        }
+    }
+
     private fun enqueueRunEvent(runId: String, event: AgentEvent) {
         if (event is AgentEvent.AssistantBlockDelta) {
             if (event.kind == AgentEvent.AssistantBlockKind.TOOL_CALL || event.delta.isEmpty()) return
@@ -1752,7 +1775,11 @@ internal class AgentAppState(
     private fun String.safeSkillDisplayName(): String =
         lineSequence().firstOrNull().orEmpty().trim().ifBlank { appContext.getString(R.string.state_ui_unnamed_skill_a58008) }.take(80)
 
-    private fun applyRunEvent(runId: String, event: AgentEvent) {
+    private fun applyRunEvent(
+        runId: String,
+        event: AgentEvent,
+        persistSupplement: Boolean = true,
+    ) {
         when (event) {
             is AgentEvent.AssistantBlockStart -> {
                 updateRunTrace(runId) { messages ->
@@ -1817,7 +1844,7 @@ internal class AgentAppState(
             }
 
             is AgentEvent.UserSupplementReceived -> {
-                insertSupplementMessage(runId, event.index, event.text)
+                insertSupplementMessage(runId, event.index, event.text, persist = persistSupplement)
             }
 
             is AgentEvent.ToolStarted -> {
@@ -1897,6 +1924,7 @@ internal class AgentAppState(
             currentRunId = null
             currentRunJob = null
         }
+        updateRunTrace(runId) { messages -> runMessageProjector.finalizeRun(runId, messages) }
         applyConversationHistoryResult(runId, result.transcript)
         when {
             result.ok && result.content.isNotBlank() -> completeLatestAssistantMessage(
@@ -1953,7 +1981,12 @@ internal class AgentAppState(
         }
     }
 
-    private fun insertSupplementMessage(runId: String, index: Int, text: String) {
+    private fun insertSupplementMessage(
+        runId: String,
+        index: Int,
+        text: String,
+        persist: Boolean = true,
+    ) {
         updateMessages(runId) { messages ->
             AgentPendingResultRecovery.mergeSupplements(
                 runId = runId,
@@ -1968,7 +2001,7 @@ internal class AgentAppState(
             )
         }
         refreshConversationSummaries()
-        persistConversations()
+        if (persist) persistConversations()
     }
 
     private fun completeLatestAssistantMessage(

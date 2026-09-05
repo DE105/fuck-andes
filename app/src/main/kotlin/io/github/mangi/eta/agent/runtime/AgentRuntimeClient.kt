@@ -189,9 +189,10 @@ internal class AgentRuntimeClient(
         }
     }
 
-    /** 重新订阅一个仍存活的 run；Service 会先重放安全事件，再继续推送实时事件。 */
+    /** 历史一次性交给 onReplay；未指定时沿用 onEvent。后续新增事件始终交给 onEvent。 */
     fun attachRun(
         runId: String,
+        onReplay: ((List<AgentEvent>) -> Unit)? = null,
         onEvent: (AgentEvent) -> Unit,
     ): AttachOutcome {
         if (runId.isBlank()) return AttachOutcome.NotActive
@@ -200,6 +201,7 @@ internal class AgentRuntimeClient(
         val resultRef = AtomicReference<AgentRuntimeWire.RunResult?>()
         val clientMessenger = Messenger(
             AttachHandler(
+                onReplay = onReplay,
                 onEvent = onEvent,
                 onAttachResponse = { attached ->
                     attachedRef.set(attached)
@@ -298,18 +300,26 @@ internal class AgentRuntimeClient(
     }
 
     private class AttachHandler(
-        private val onEvent: (AgentEvent) -> Unit,
-        private val onAttachResponse: (Boolean) -> Unit,
-        private val onResult: (AgentRuntimeWire.RunResult) -> Unit,
+        onReplay: ((List<AgentEvent>) -> Unit)?,
+        onEvent: (AgentEvent) -> Unit,
+        onAttachResponse: (Boolean) -> Unit,
+        onResult: (AgentRuntimeWire.RunResult) -> Unit,
     ) : Handler(Looper.getMainLooper()) {
+        private val delivery = AgentRuntimeAttachDelivery(
+            onReplay = onReplay,
+            onEvent = onEvent,
+            onAttachResponse = onAttachResponse,
+            onResult = onResult,
+        )
+
         override fun handleMessage(msg: Message) {
             when (msg.what) {
                 AgentRuntimeWire.MSG_EVENT ->
-                    AgentRuntimeWire.eventFromBundle(msg.data ?: return)?.let(onEvent)
+                    AgentRuntimeWire.eventFromBundle(msg.data ?: return)?.let(delivery::event)
                 AgentRuntimeWire.MSG_RESULT ->
-                    onResult(AgentRuntimeWire.runResultFromBundle(msg.data ?: return))
+                    delivery.result(AgentRuntimeWire.runResultFromBundle(msg.data ?: return))
                 AgentRuntimeWire.MSG_ATTACH_RUN_RESPONSE ->
-                    onAttachResponse(AgentRuntimeWire.attachRunSucceeded(msg.data ?: return))
+                    delivery.attachResponse(AgentRuntimeWire.attachRunSucceeded(msg.data ?: return))
             }
         }
     }

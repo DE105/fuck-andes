@@ -108,7 +108,12 @@ internal class SmoothTextRevealCoordinator {
     }
 
     fun detach(key: RevealBlockKey, node: SmoothTextRevealNode) {
-        records[key]?.takeIf { it.node === node }?.node = null
+        val record = records[key]?.takeIf { it.node === node } ?: return
+        record.node = null
+        // 已离开组合的块不再消费帧时钟；保留完成进度，重挂载时只显现后续新增文本。
+        completeRecord(record)
+        updateDrainedState()
+        wakeups.trySend(Unit)
     }
 
     fun updateLayout(
@@ -185,7 +190,7 @@ internal class SmoothTextRevealCoordinator {
         if (record.layoutResult !== layoutResult) {
             record.layoutResult = layoutResult
         }
-        if (animationsPaused) completeRecord(record)
+        if (animationsPaused || record.node == null) completeRecord(record)
         updateDrainedState()
         record.node?.onRevealDataChanged()
     }
@@ -199,12 +204,7 @@ internal class SmoothTextRevealCoordinator {
     }
 
     private fun firstPendingRecord(): RevealRecord? = records.values.firstOrNull { record ->
-        if (record.progress >= record.targetCount) return@firstOrNull false
-        // 更早的块还没完成挂载或排版时不能越过它去播放后面的块。
-        // 返回一个不可播放的占位会让帧时钟等待 attach/updateLayout 的唤醒。
-        true
-    }?.takeIf { record ->
-        record.node != null && record.layoutResult != null
+        record.progress < record.targetCount && record.node != null && record.layoutResult != null
     }
 
     private fun updateDrainedState() {
