@@ -118,7 +118,7 @@ Eta 通过 Android 标准 `VoiceInteractionService` 注册为可选数字助理�
 - **Gemini 解锁**：Google App 设备资格补齐、系统化、默认数字助理接管、电源键入口，以及锁屏/亮屏语音输入和息屏热词补偿
 - **一圈即搜**：启用并修正原本不可用的 Android `contextual_search` 服务与 Google App 资格，再把手势条长按和双指识屏改造成触发入口，不改系统文件
 
-HyperOS 通过小米桌面或国际版桌面的长按回调触发一圈即搜，旧版桌面在没有原生长按检测时补充触摸检测，复用“手势条长按触发一圈即搜”开关。需额外勾选所用桌面的作用域。当前实现依赖 ROM 提供 `ContextualSearchManagerService`，未提供该类或 Google 搜索入口时保留原行为；HyperOS 电源键和横条入口尚未经过真机验证。具体 Hook、版本探测与验证边界见 [HyperOS 系统入口适配](docs/HYPEROS_SYSTEM_ENTRY.md)。
+HyperOS 通过小米桌面或国际版桌面的长按回调触发一圈即搜，旧版桌面在没有原生长按检测时补充触摸检测，复用“手势条长按触发一圈即搜”开关。需额外勾选所用桌面的作用域。Android 17 / HyperOS 4 还会经由小爱识屏服务触发，需要勾选“超级小爱”作用域，并将系统“长按手势提示线”设为“超级小爱识屏”。当前实现依赖 ROM 提供 `ContextualSearchManagerService`，未提供该类或 Google 搜索入口时保留原行为；HyperOS 电源键和横条入口尚未经过真机验证。具体 Hook、版本探测与验证边界见 [HyperOS 系统入口适配](docs/HYPEROS_SYSTEM_ENTRY.md)。
 
 Gemini 解锁与一圈即搜是 Eta 早期建立的 Google 能力解锁功能，目前不是开发重点，但仍会维护。
 

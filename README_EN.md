@@ -105,7 +105,7 @@ Under **System assistant takeover** in Eta's Settings, the ColorOS long-press ta
 
 New installations default to Breeno; users who had enabled the former **Launch Gemini with the power button** option remain on Gemini. Automatic default-assistant configuration is a separate option and applies only to Gemini and Eta. If the selected target cannot start, that long press immediately falls back to Breeno.
 
-HyperOS 电源键与横条长按已接入源码适配，尚未经过真机验证；桌面作用域、服务依赖与触发条件见 [HyperOS 系统入口适配](docs/HYPEROS_SYSTEM_ENTRY.md)。
+HyperOS 电源键与横条长按已接入源码适配，尚未经过真机验证；Android 17 / HyperOS 4 需勾选“超级小爱”作用域，并将系统“长按手势提示线”设为“超级小爱识屏”；桌面作用域、服务依赖与触发条件见 [HyperOS 系统入口适配](docs/HYPEROS_SYSTEM_ENTRY.md)。
 
 ### Breeno and Super XiaoAI
 

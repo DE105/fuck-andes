@@ -7,7 +7,6 @@ import io.github.mangi.eta.core.ModuleConfig
 import io.github.mangi.eta.core.ModuleLogger
 
 import io.github.mangi.eta.config.Prefs
-import android.content.pm.ApplicationInfo
 import android.content.Context
 import android.os.Binder
 import android.os.IBinder
@@ -154,20 +153,11 @@ internal object ContextualSearchHooks {
         } ?: return false
         return packages.contains(ModuleConfig.SYSTEM_UI_PACKAGE) ||
             packages.contains(ModuleConfig.COLOR_DIRECT_PACKAGE) ||
-            (Prefs.isEnabled(Prefs.Keys.GESTURE_BAR_CIRCLE_TO_SEARCH) &&
-                packages.any { packageName ->
-                    packageName in ModuleConfig.XIAOMI_LAUNCHER_PACKAGES &&
-                        isSystemPackage(context, packageName)
-                })
-    }
-
-    private fun isSystemPackage(context: Context, packageName: String): Boolean = try {
-        val info = context.packageManager.getApplicationInfo(packageName, 0)
-        info.flags and (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
-    } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
-        false
-    } catch (_: SecurityException) {
-        false
+            ContextualSearchCallerPolicy.allowsHyperOsCaller(
+                context,
+                packages,
+                gestureEnabled = Prefs.isEnabled(Prefs.Keys.GESTURE_BAR_CIRCLE_TO_SEARCH),
+            )
     }
 
     private fun ensureContextualSearchService(

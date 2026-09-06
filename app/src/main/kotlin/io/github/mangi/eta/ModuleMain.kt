@@ -16,6 +16,7 @@ import io.github.mangi.eta.hook.colordirect.ColorDirectHooks
 import io.github.mangi.eta.hook.google.GoogleAppHooks
 import io.github.mangi.eta.hook.google.GoogleEligibilityHooks
 import io.github.mangi.eta.hook.hyperos.HyperOsLauncherHooks
+import io.github.mangi.eta.hook.hyperos.HyperOsScreenSearchHooks
 import io.github.mangi.eta.hook.system.SystemServerHooks
 import io.github.mangi.eta.hook.system.SystemUiHooks
 import io.github.mangi.eta.hook.xiaoai.XiaoAiHooks
@@ -99,6 +100,9 @@ class ModuleMain : XposedModule() {
             }
 
             ModuleConfig.XIAOAI_PACKAGE -> {
+                if (isCurrentPackageProcess(ModuleConfig.XIAOAI_PACKAGE)) {
+                    recordInstallation(HyperOsScreenSearchHooks.install(this, logger, param.classLoader))
+                }
                 if (isCurrentXiaoAiProcess()) {
                     recordInstallation(
                         XiaoAiHooks.install(
@@ -131,8 +135,7 @@ class ModuleMain : XposedModule() {
             isPackageProcess(processName, ModuleConfig.COLOR_DIRECT_PACKAGE) ||
             isPackageProcess(processName, ModuleConfig.BREENO_PACKAGE) ||
             processName == ModuleConfig.COLOROS_MEMORY_PACKAGE ||
-            processName == ModuleConfig.XIAOAI_PACKAGE ||
-            processName == ModuleConfig.XIAOAI_CORE_PROCESS
+            isPackageProcess(processName, ModuleConfig.XIAOAI_PACKAGE)
     }
 
     private fun isCurrentXiaoAiProcess(): Boolean {
