@@ -26,8 +26,7 @@ Requires **Android 14 or later**. The app works across phone brands, and core fe
 | :---: | :---: |
 | <img src="docs/Screenshots/demo_gui_agent.gif" width="320" alt="Eta GUI Agent in action"> | <img src="docs/Screenshots/demo_tools.gif" width="320" alt="Starting an Eta task through Breeno"> |
 
-<details>
-<summary>More screenshots: chat, system tools, and settings</summary>
+More screenshots: chat, system tools, and settings
 
 | Chat | Commands through Breeno | Direct system API calls |
 | :---: | :---: | :---: |
@@ -37,7 +36,6 @@ Requires **Android 14 or later**. The app works across phone brands, and core fe
 | :---: | :---: | :---: |
 | ![Settings](docs/Screenshots/settings.jpg) | ![Tools](docs/Screenshots/tools.jpg) | ![Skills](docs/Screenshots/skills.jpg) |
 
-</details>
 
 ## Core capabilities
 

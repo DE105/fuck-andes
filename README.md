@@ -26,8 +26,7 @@ Eta 内置 Agent Runtime，通过 Agent Loop 编排模型调用、工具执行�
 | :-------: | :-----------: |
 | <img src="docs/Screenshots/demo_gui_agent.gif" width="320" alt="Eta GUI Agent 执行演示"> | <img src="docs/Screenshots/demo_tools.gif" width="320" alt="从小布助手入口发起 Eta 任务"> |
 
-<details>
-<summary>更多界面：聊天、设备工具与设置</summary>
+更多界面：聊天、设备工具与设置
 
 |                  聊天首页                  |                        小布入口执行命令                        |                       系统 API 调用                       |
 | :-----------------------------------------: | :------------------------------------------------------------: | :-------------------------------------------------------: |
@@ -37,7 +36,6 @@ Eta 内置 Agent Runtime，通过 Agent Loop 编排模型调用、工具执行�
 | :------------------------------------: | :-------------------------------------: | :------------------------------------: |
 | ![设置](docs/Screenshots/settings.jpg) | ![工具能力](docs/Screenshots/tools.jpg) | ![Skills](docs/Screenshots/skills.jpg) |
 
-</details>
 
 ## 核心能力
 
