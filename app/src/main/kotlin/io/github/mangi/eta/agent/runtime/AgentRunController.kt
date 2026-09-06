@@ -1,5 +1,7 @@
 package io.github.mangi.eta.agent.runtime
 
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.ArrayDeque
 import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.atomic.AtomicBoolean
@@ -100,6 +102,21 @@ internal class AgentRunController {
             }
         }
         if (cancelled) throw AgentRunCancelledException()
+    }
+
+    fun awaitRetryDelay(delayMs: Long) {
+        throwIfCancelled()
+        val cancelledLatch = CountDownLatch(1)
+        val binding = register { cancelledLatch.countDown() }
+        try {
+            cancelledLatch.await(delayMs, TimeUnit.MILLISECONDS)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw AgentRunCancelledException()
+        } finally {
+            binding.close()
+        }
+        throwIfCancelled()
     }
 
     fun register(cancel: () -> Unit): ResourceBinding {

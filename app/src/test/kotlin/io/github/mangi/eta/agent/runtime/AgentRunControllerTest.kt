@@ -13,6 +13,33 @@ import org.junit.Test
 
 class AgentRunControllerTest {
     @Test
+    fun cancellationWakesLongRetryWait() {
+        val controller = AgentRunController()
+        val started = CountDownLatch(1)
+        val finished = CountDownLatch(1)
+        val failure = AtomicReference<Throwable?>()
+        val worker = thread {
+            started.countDown()
+            try {
+                controller.awaitRetryDelay(60_000L)
+            } catch (error: Throwable) {
+                failure.set(error)
+            } finally {
+                finished.countDown()
+            }
+        }
+        try {
+            assertTrue(started.await(1, TimeUnit.SECONDS))
+            controller.cancel()
+            assertTrue(finished.await(1, TimeUnit.SECONDS))
+            assertTrue(failure.get() is AgentRunCancelledException)
+        } finally {
+            controller.cancel()
+            worker.join(1_000)
+        }
+    }
+
+    @Test
     fun steeringIsQueuedOneAtATimeWithoutCancellingResources() {
         val controller = AgentRunController()
         val cancellations = AtomicInteger(0)

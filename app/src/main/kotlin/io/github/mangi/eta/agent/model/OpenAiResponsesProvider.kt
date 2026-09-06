@@ -52,7 +52,7 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
             .headers(headers)
             .post(body)
             .build()
-        val call = AgentHttpClient.client.newCall(httpRequest)
+        val call = AgentHttpClient.modelClient.newCall(httpRequest)
         val binding = runController.register(call::cancel)
 
         try {
@@ -62,7 +62,7 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
                 onEvent(ProviderEvent.ResponseHeaders(response.code))
                 runController.throwIfCancelled()
                 if (!response.isSuccessful) {
-                    error("模型接口返回 HTTP ${response.code}：${response.body.string().compactError()}")
+                    throw AgentModelFailure.http(response.code, response.peekBody(16_384).string())
                 }
                 val assistant = readStreamingResponse(
                     stream = response.body.byteStream(),
@@ -363,8 +363,8 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
             }
         }
 
-        if (!sawEvent) error("模型接口未返回 SSE data chunk")
-        val finalResponse = terminal ?: error("模型接口 Responses SSE 流缺少合法终止事件")
+        if (!sawEvent) throw AgentModelFailure.incompleteStream("模型接口未返回 SSE data chunk")
+        val finalResponse = terminal ?: throw AgentModelFailure.incompleteStream("模型接口 Responses SSE 流缺少合法终止事件")
         if (terminalType == "response.failed") throwResponseFailure(finalResponse)
 
         val terminalOutput = finalResponse.optJSONArray("output")
@@ -624,19 +624,19 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
         val error = event.optJSONObject("error") ?: return
         val message = error.optString("message").ifBlank { "未提供错误信息" }.compactError()
         val type = error.optString("type").takeIf { it.isNotBlank() }
-        error("模型接口 SSE 返回错误${type?.let { " (type=$it)" }.orEmpty()}：$message")
+        throw AgentModelFailure.stream(error, "模型接口 SSE 返回错误${type?.let { " (type=$it)" }.orEmpty()}：$message")
     }
 
     private fun throwTopLevelEventError(event: JSONObject): Nothing {
         val message = event.optString("message").ifBlank { "未提供错误信息" }.compactError()
         val code = event.optString("code").takeIf { it.isNotBlank() }
-        error("模型接口 SSE 返回错误${code?.let { " (code=$it)" }.orEmpty()}：$message")
+        throw AgentModelFailure.stream(event, "模型接口 SSE 返回错误${code?.let { " (code=$it)" }.orEmpty()}：$message")
     }
 
     private fun throwResponseFailure(response: JSONObject): Nothing {
         val error = response.optJSONObject("error")
         val message = error?.optString("message").orEmpty().ifBlank { "未提供错误信息" }
-        kotlin.error("模型接口 Responses 请求失败：${message.compactError()}")
+        throw AgentModelFailure.stream(error ?: JSONObject(), "模型接口 Responses 请求失败：${message.compactError()}")
     }
 
     private fun JSONObject.intValue(vararg keys: String): Int? {

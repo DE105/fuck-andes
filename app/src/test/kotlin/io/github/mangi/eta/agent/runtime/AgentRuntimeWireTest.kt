@@ -25,6 +25,13 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class AgentRuntimeWireTest {
     @Test
+    fun retryEventSurvivesIpcAndArchiveJson() {
+        val event = AgentEvent.ModelRetryScheduled(7, 2, 3, 4_000, "MODEL_TIMEOUT")
+        assertEquals(event, AgentRuntimeWire.eventFromBundle(AgentRuntimeWire.eventToBundle(event)))
+        assertEquals(event, AgentEventJsonCodec.decode(AgentEventJsonCodec.encode(event)))
+    }
+
+    @Test
     fun attachResponsePreservesRunIdentityAndDecision() {
         val accepted = AgentRuntimeWire.attachRunResponseBundle("run-1", attached = true)
         val rejected = AgentRuntimeWire.attachRunResponseBundle("run-2", attached = false)

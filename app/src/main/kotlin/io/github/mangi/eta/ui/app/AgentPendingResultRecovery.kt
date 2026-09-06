@@ -43,7 +43,8 @@ internal object AgentPendingResultRecovery {
             .filterNot { it is SystemNoticeMessageUi && it.id == interruptedNoticeId(runId) }
             .toMutableList()
             .also { messages ->
-            val assistantIndex = messages.indexOfLast { it.isAssistantForRun(runId) }
+            val assistantIndex = AgentRunMessageProjector.resultTargetIndex(runId, messages, includeNotices = true)
+            val resultId = AgentRunMessageProjector.resultFallbackId(runId, messages)
             val targetRound = (messages.getOrNull(assistantIndex) as? AgentMessageUi)
                 ?.id
                 ?.assistantRound(runId)
@@ -54,7 +55,7 @@ internal object AgentPendingResultRecovery {
             } ?: 0
             val completedMessage: AgentChatMessageUi = when {
                 content != null -> AgentMessageUi(
-                    id = "assistant-$runId-1",
+                    id = resultId,
                     content = if (sameRoundBlocks > 1) {
                         (messages[assistantIndex] as AgentMessageUi).content.ifBlank { content }
                     } else {
@@ -64,11 +65,11 @@ internal object AgentPendingResultRecovery {
                     renderMarkdown = true,
                 )
                 result.ok -> SystemNoticeMessageUi(
-                    id = "assistant-$runId-1",
+                    id = resultId,
                     code = SystemNoticeCode.EmptyResult,
                 )
                 else -> SystemNoticeMessageUi(
-                    id = "assistant-$runId-1",
+                    id = resultId,
                     code = SystemNoticeCode.RuntimeFailed,
                     detail = result.error,
                 )

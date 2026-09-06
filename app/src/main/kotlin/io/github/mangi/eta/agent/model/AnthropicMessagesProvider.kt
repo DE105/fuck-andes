@@ -12,7 +12,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 internal object AnthropicMessagesProvider : AgentProviderClient {
-    private const val MAX_ERROR_CHARS = 600
     private const val DEFAULT_MAX_TOKENS = 4096
     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
@@ -56,7 +55,7 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
             )
             .build()
 
-        val call = AgentHttpClient.client.newCall(httpRequest)
+        val call = AgentHttpClient.modelClient.newCall(httpRequest)
         val binding = runController.register { call.cancel() }
         try {
             runController.throwIfCancelled()
@@ -65,8 +64,8 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
                 onEvent(ProviderEvent.ResponseHeaders(response.code))
                 runController.throwIfCancelled()
                 if (!response.isSuccessful) {
-                    val errorBody = response.body.string()
-                    error("Anthropic 接口返回 HTTP ${response.code}：${errorBody.compactError()}")
+                    val errorBody = response.peekBody(16_384).string()
+                    throw AgentModelFailure.http(response.code, errorBody)
                 }
                 val assistant = readStreamingAssistantMessage(response.body.byteStream(), runController, onEvent)
                 onEvent(ProviderEvent.Completed(assistant.optString("finish_reason").ifBlank { null }))
@@ -267,7 +266,7 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
             }
         }
         dispatch()
-        if (!sawMessageStop) error("Anthropic SSE 流未正常结束")
+        if (!sawMessageStop) throw AgentModelFailure.incompleteStream("Anthropic SSE 流未正常结束")
 
         return JSONObject()
             .put("role", "assistant")
@@ -304,6 +303,10 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
         val json = JSONObject(payload)
         val type = json.optString("type").ifBlank { event }
         return when (type) {
+            "error" -> throw AgentModelFailure.stream(
+                json.optJSONObject("error") ?: JSONObject(),
+                "Anthropic SSE 返回错误",
+            )
             "message_start" -> EventResult(usage = parseUsage(json.optJSONObject("message")?.optJSONObject("usage")))
             "content_block_start" -> {
                 val index = json.optInt("index")
@@ -481,8 +484,5 @@ internal object AnthropicMessagesProvider : AgentProviderClient {
             cachedTokens?.let { json.put("cached_tokens", it) }
         }
 
-    private fun String.compactError(): String =
-        replace('\n', ' ')
-            .replace('\r', ' ')
-            .let { if (it.length > MAX_ERROR_CHARS) it.take(MAX_ERROR_CHARS) + "..." else it }
+
 }

@@ -78,19 +78,8 @@ internal class AgentRuntimeClient(
             preparedImagesRef.set(preparedImages)
             msg.data = AgentRuntimeWire.toBundle(request, preparedImages.images)
             serviceMessenger.send(msg)
-            if (!resultLatch.await(RUN_TIMEOUT_MINUTES, TimeUnit.MINUTES)) {
-                runCatching {
-                    val cancelMessage = Message.obtain(null, AgentRuntimeWire.MSG_CANCEL)
-                    cancelMessage.data = AgentRuntimeWire.ackBundle(request.runId)
-                    serviceMessenger.send(cancelMessage)
-                }
-                return AgentRuntimeWire.RunResult(
-                    runId = request.runId,
-                    ok = false,
-                    content = "",
-                    error = "Agent Runtime 执行超时",
-                )
-            }
+            // 最终结果或 Binder 断连负责唤醒；正常长任务不因客户端等待时长被取消。
+            resultLatch.await()
             return resultRef.get() ?: AgentRuntimeWire.RunResult("", false, "", "Agent Runtime 未返回结果")
         } catch (interrupted: InterruptedException) {
             Thread.currentThread().interrupt()
@@ -197,6 +186,7 @@ internal class AgentRuntimeClient(
     ): AttachOutcome {
         if (runId.isBlank()) return AttachOutcome.NotActive
         val terminalLatch = CountDownLatch(1)
+        val attachLatch = CountDownLatch(1)
         val attachedRef = AtomicReference<Boolean?>(null)
         val resultRef = AtomicReference<AgentRuntimeWire.RunResult?>()
         val clientMessenger = Messenger(
@@ -205,17 +195,22 @@ internal class AgentRuntimeClient(
                 onEvent = onEvent,
                 onAttachResponse = { attached ->
                     attachedRef.set(attached)
+                    attachLatch.countDown()
                     if (!attached) terminalLatch.countDown()
                 },
                 onResult = { result ->
                     resultRef.set(result)
+                    attachLatch.countDown()
                     terminalLatch.countDown()
                 },
             )
         )
         val lease = AgentRuntimeConnection.acquire(context, logger)
             ?: return AttachOutcome.Unavailable
-        val deathRecipient = IBinder.DeathRecipient { terminalLatch.countDown() }
+        val deathRecipient = IBinder.DeathRecipient {
+            attachLatch.countDown()
+            terminalLatch.countDown()
+        }
 
         try {
             lease.binder.linkToDeath(deathRecipient, 0)
@@ -223,9 +218,10 @@ internal class AgentRuntimeClient(
             msg.replyTo = clientMessenger
             msg.data = AgentRuntimeWire.ackBundle(runId)
             lease.messenger.send(msg)
-            if (!terminalLatch.await(RUN_TIMEOUT_MINUTES, TimeUnit.MINUTES)) {
+            if (!attachLatch.await(RESPONSE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 return AttachOutcome.Unavailable
             }
+            terminalLatch.await()
             resultRef.get()?.let { return AttachOutcome.Completed(it) }
             return if (attachedRef.get() == false) {
                 AttachOutcome.NotActive
@@ -326,6 +322,5 @@ internal class AgentRuntimeClient(
 
     private companion object {
         const val RESPONSE_TIMEOUT_SECONDS = 8L
-        const val RUN_TIMEOUT_MINUTES = 30L
     }
 }

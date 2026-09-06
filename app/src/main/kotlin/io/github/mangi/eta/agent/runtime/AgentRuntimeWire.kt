@@ -549,6 +549,15 @@ internal object AgentRuntimeWire {
                 putInt("message_count", event.messageCount)
             }
 
+            is AgentEvent.ModelRetryScheduled -> {
+                putString(KEY_TYPE, "model_retry_scheduled")
+                putInt("round", event.round)
+                putInt("attempt", event.attempt)
+                putInt("max_attempts", event.maxAttempts)
+                putInt("delay_ms", event.delayMs)
+                putString("reason_code", event.reasonCode)
+            }
+
             is AgentEvent.ProviderRequestStarted -> {
                 putString(KEY_TYPE, "provider_request_started")
                 putInt("round", event.round)
@@ -677,6 +686,14 @@ internal object AgentRuntimeWire {
         "round_started" -> AgentEvent.RoundStarted(
             round = bundle.getInt("round"),
             messageCount = bundle.getInt("message_count"),
+        )
+
+        "model_retry_scheduled" -> AgentEvent.ModelRetryScheduled(
+            round = bundle.getInt("round"),
+            attempt = bundle.getInt("attempt", 1),
+            maxAttempts = bundle.getInt("max_attempts", 3),
+            delayMs = bundle.getInt("delay_ms", 2_000),
+            reasonCode = bundle.getString("reason_code").orEmpty(),
         )
 
         "provider_request_started" -> AgentEvent.ProviderRequestStarted(

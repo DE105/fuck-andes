@@ -40,10 +40,18 @@ internal fun AgentOverlayState.applyEvent(event: AgentEvent): AgentOverlayState 
         status = AgentOverlayStatus.ReasoningRound(event.round),
     )
 
+    is AgentEvent.ModelRetryScheduled -> copy(
+        phase = AgentOverlayPhase.RUNNING,
+        round = event.round,
+        status = AgentOverlayStatus.RequestingModel,
+        detailText = event.displayMessage,
+    )
+
     is AgentEvent.ProviderRequestStarted -> copy(
         phase = AgentOverlayPhase.RUNNING,
         round = event.round,
         status = AgentOverlayStatus.RequestingModel,
+        detailText = "",
     )
 
     is AgentEvent.ProviderResponseStarted -> copy(

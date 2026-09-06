@@ -16,6 +16,33 @@ import org.junit.Test
 
 class AgentPendingResultRecoveryTest {
     @Test
+    fun recoveryDoesNotReplaceFailedAttemptOrRetryNotice() {
+        val partial = AgentMessageUi(id = "assistant-retry-run-1-0", content = "半截回答")
+        val notice = SystemNoticeMessageUi(
+            id = "assistant-retry-run-retry-1",
+            code = SystemNoticeCode.ModelRetry,
+            detail = "正在重试",
+        )
+        val state = AgentChatUiState(
+            messages = listOf(partial, notice), input = "", isStreaming = true, thinkingEnabled = false,
+        )
+        for (ok in listOf(true, false)) {
+            val recovered = AgentPendingResultRecovery.apply(
+                state = state,
+                runId = "retry-run",
+                result = AgentRuntimeWire.RunResult(
+                    runId = "retry-run", ok = ok, content = if (ok) "最终回答" else "",
+                    error = if (ok) null else "重试耗尽",
+                ),
+                supplements = emptyList(),
+            )
+            assertEquals(listOf(partial, notice), recovered.state.messages.take(2))
+            assertEquals("assistant-retry-run-2-result", recovered.state.messages.last().id)
+            assertEquals(3, recovered.state.messages.size)
+        }
+    }
+
+    @Test
     fun recoveryFinalizesLatestRoundAndAppendsTranscriptExactlyOnce() {
         val transcript = listOf(
             AgentModelClient.ConversationMessage(role = "assistant", content = "最终结果")

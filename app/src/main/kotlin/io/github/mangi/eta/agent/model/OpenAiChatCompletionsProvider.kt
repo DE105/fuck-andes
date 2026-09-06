@@ -61,7 +61,7 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
             .post(requestBody)
             .build()
 
-        val call = AgentHttpClient.client.newCall(httpRequest)
+        val call = AgentHttpClient.modelClient.newCall(httpRequest)
         val binding = runController.register { call.cancel() }
 
         try {
@@ -74,8 +74,8 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
                 runController.throwIfCancelled()
 
                 if (!response.isSuccessful) {
-                    val errorBody = response.body.string()
-                    error("模型接口返回 HTTP $code：${errorBody.compactError()}")
+                    val errorBody = response.peekBody(16_384).string()
+                    throw AgentModelFailure.http(code, errorBody)
                 }
 
                 val assistantMessage = readStreamingAssistantMessage(response.body.byteStream(), runController, onEvent)
@@ -244,8 +244,8 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
             }
         }
 
-        if (!sawStreamData) error("模型接口未返回 SSE data chunk")
-        if (!sawDone && finishReason == null) error("模型接口 SSE 流未正常结束")
+        if (!sawStreamData) throw AgentModelFailure.incompleteStream("模型接口未返回 SSE data chunk")
+        if (!sawDone && finishReason == null) throw AgentModelFailure.incompleteStream("模型接口 SSE 流未正常结束")
 
         finishActiveVisibleBlock()
         toolCalls.values.sortedBy { it.contentIndex }.forEach { call ->
@@ -333,7 +333,10 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
         val message = streamError.optString("message")
             .ifBlank { "未提供错误信息" }
             .compactError()
-        error("模型接口 SSE 返回错误${context.takeIf { it.isNotBlank() }?.let { " ($it)" }.orEmpty()}：$message")
+        throw AgentModelFailure.stream(
+            streamError,
+            "模型接口 SSE 返回错误${context.takeIf { it.isNotBlank() }?.let { " ($it)" }.orEmpty()}：$message",
+        )
     }
 
     private fun parseUsage(chunk: JSONObject): AgentTokenUsage? {

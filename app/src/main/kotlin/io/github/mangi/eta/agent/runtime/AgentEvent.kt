@@ -29,6 +29,20 @@ internal sealed interface AgentEvent {
             "round_started round=$round, messages=$messageCount"
     }
 
+    data class ModelRetryScheduled(
+        val round: Int,
+        val attempt: Int,
+        val maxAttempts: Int,
+        val delayMs: Int,
+        val reasonCode: String,
+    ) : AgentEvent {
+        val displayMessage: String
+            get() = "模型请求暂时中断，${delayMs / 1000} 秒后重试（$attempt/$maxAttempts）；此前工具结果已保留。"
+
+        override fun toLogLine(): String =
+            "model_retry_scheduled round=$round, attempt=$attempt, delay_ms=$delayMs, code=${reasonCode.toSafeLogToken()}"
+    }
+
     data class ProviderRequestStarted(
         val round: Int
     ) : AgentEvent {

@@ -32,6 +32,8 @@ internal class XiaoAiStreamRenderer(
 
     fun onEvent(event: AgentEvent) {
         when (event) {
+            is AgentEvent.ModelRetryScheduled -> render(event.displayMessage)
+
             is AgentEvent.RunStarted,
             is AgentEvent.ProviderRequestStarted,
             is AgentEvent.ProviderResponseStarted -> render(

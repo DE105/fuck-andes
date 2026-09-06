@@ -4,6 +4,7 @@ import android.content.Context
 import io.github.mangi.eta.agent.accessibility.AgentAccessibilityKeeper
 import io.github.mangi.eta.agent.model.AgentModelClient
 import io.github.mangi.eta.agent.model.AgentModelExecutionException
+import io.github.mangi.eta.agent.model.AgentModelFailure
 import io.github.mangi.eta.agent.model.AgentHttpClient
 import io.github.mangi.eta.agent.memory.AgentMemoryContext
 import io.github.mangi.eta.agent.memory.AgentMemoryContextBuilder
@@ -226,8 +227,11 @@ internal class AgentRuntimeRunExecutor(
             if (cancelled) {
                 AndroidAgentLogger.info("Agent runtime stopped")
             } else {
+                val requestFailure = modelFailure?.cause as? AgentModelFailure
                 AndroidAgentLogger.error(
-                    "Agent runtime failed: type=${throwable.safeLogType()}"
+                    "Agent runtime failed: type=${throwable.safeLogType()}, " +
+                        "model_code=${requestFailure?.code.orEmpty()}, " +
+                        "cause_type=${requestFailure?.cause?.safeLogType().orEmpty()}"
                 )
                 val event = AgentEvent.RunFailed(message)
                 runCatching {
@@ -314,7 +318,9 @@ internal class AgentRuntimeRunExecutor(
         checkpointRecorder?.accept(event)
         if (!session.emit(event)) return
         archivedEvents += event
-        if (event !is AgentEvent.AssistantBlockDelta) {
+        if (event is AgentEvent.ModelRetryScheduled) {
+            AndroidAgentLogger.warn("Agent runtime event: ${event.toLogLine()}")
+        } else if (event !is AgentEvent.AssistantBlockDelta) {
             AndroidAgentLogger.debug { "Agent runtime event: ${event.toLogLine()}" }
         }
         runCatching { onAcceptedEvent(event, entrySurfaceGuard) }

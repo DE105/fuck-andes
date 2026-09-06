@@ -563,6 +563,63 @@ class AgentModelClientLoopTest {
         assertEquals(toolRounds + 1, provider.requests.size)
     }
 
+    @Test
+    fun retryPreservesToolResultsAndImagesWithoutReplayingToolsOrFailedReasoning() {
+        val requests = mutableListOf<String>()
+        val events = mutableListOf<AgentEvent>()
+        var executions = 0
+        val provider = object : AgentProviderClient by ScriptedProvider(emptyList()) {
+            override fun complete(
+                request: ProviderRequest,
+                runController: AgentRunController,
+                onEvent: (ProviderEvent) -> Unit,
+            ): ProviderResponse {
+                requests += request.messages.toString()
+                onEvent(ProviderEvent.RequestStarted)
+                return when (requests.size) {
+                    1 -> ProviderResponse(assistant(
+                        finishReason = "tool_calls",
+                        reasoning = "先观察",
+                        toolCalls = listOf(toolCall("observe-1", "get_current_context", "{}")),
+                    ))
+                    2 -> {
+                        onEvent(ProviderEvent.BlockDelta(AssistantBlockKind.THINKING, 0, "失败的思考"))
+                        onEvent(ProviderEvent.BlockDelta(AssistantBlockKind.TEXT, 1, "半截回答"))
+                        onEvent(ProviderEvent.BlockDelta(AssistantBlockKind.TOOL_CALL, 2, "半截参数"))
+                        throw java.net.SocketTimeoutException("timeout")
+                    }
+                    else -> ProviderResponse(assistant(content = "完成", finishReason = "stop", reasoning = "观察成功"))
+                }
+            }
+        }
+        val messages = JSONArray().put(AgentConversationCodec.userTextMessage("开始"))
+        val loop = AgentLoop(
+            config = modelConfig(), messages = messages,
+            tools = AgentToolCatalog.build(terminalTools = false, browserTools = false),
+            provider = provider,
+            toolExecutor = AgentModelClient.ToolExecutor {
+                executions++
+                AgentModelClient.ToolResult(
+                    content = "观察结果",
+                    images = listOf(AgentModelClient.ModelImage("data:image/png;base64,dGVzdA==", "image/png", 4)),
+                )
+            },
+            runController = AgentRunController(), traceFormatter = AgentTraceFormatter(),
+            onEvent = events::add, modelRetry = AgentModelRetry { _, _ -> },
+        )
+        val result = loop.run()
+        assertEquals(1, executions)
+        assertEquals(3, requests.size)
+        assertEquals(requests[1], requests[2])
+        assertTrue(requests[2].contains("data:image/png"))
+        assertFalse(messages.toString().contains("data:image/png"))
+        assertFalse(messages.toString().contains("半截"))
+        assertEquals("先观察观察成功", result.reasoningContent)
+        assertEquals(listOf(1, 2, 3), events.filterIsInstance<AgentEvent.RoundStarted>().map { it.round })
+        assertEquals(2, events.filterIsInstance<AgentEvent.ModelRetryScheduled>().single().round)
+        assertEquals(1, events.filterIsInstance<AgentEvent.ToolStarted>().size)
+    }
+
     private class ScriptedProvider(
         private val responses: List<(ProviderRequest, AgentRunController) -> JSONObject>,
     ) : AgentProviderClient {

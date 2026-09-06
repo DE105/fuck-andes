@@ -40,12 +40,11 @@ pending steering
 - 工具参数在执行前按本轮实际下发的 JSON Schema 校验，支持本地 `$ref`、组合 Schema、条件 Schema 与常用对象、数组、字符串、数值约束；这只检查调用合同，不承担权限确认或额外安全策略。
 - transcript 只返回本次 run 新增的 assistant、tool 和运行中 steering 消息，不重复旧 history 或本轮初始用户消息。
 - GUI/终端工具保持串行。Android 前台状态和会话式 Shell 都不具备可安全并行的通用语义。
-- 单次 run 当前最多 64 个模型回合、256 个工具调用，防止异常模型形成无界循环。
-- 最后一个允许回合不会再启动工具副作用，因为其结果已经没有下一回合可以消费。
+- 单次 run 不设置固定回合数或总时限，由模型自然结束、用户取消或不可恢复错误终止。
 - cancel 是终止信号；pause 是检查点阻塞；steering 是下一回合输入。三者不能互相模拟。
 - cancel 的主线程路径只做原子终态与资源关闭：共享浏览器按 runId 校验归属；终端立即封闭新的进程接纳，并在后台按独立进程组终止同步命令、会话和 async job，再完成线程与流回收。Android 上 `setsid` 或 PID/PGID ownership 握手不可用时会 fail closed；非 Android 测试环境才允许父子树快照回退。终止前还会核验随机 ownership token，避免陈旧 PGID 复用后误杀无关进程。
 - 最终 steering 检查会原子关闭接收入口；Loop 返回后不会再把无人消费的补充指令误报为已接收。补充指令也不会解除 pause。
-- 新 run 替换旧 run、用户取消和正常完成都通过 `AgentRuntimeSession` 的 `RUNNING → COMMITTING → TERMINAL` 状态机竞争唯一终态；提交胜者独占 outbox、归档和最终发布，客户端另有 30 分钟兜底超时。
+- 新 run 替换旧 run、用户取消和正常完成都通过 `AgentRuntimeSession` 的 `RUNNING → COMMITTING → TERMINAL` 状态机竞争唯一终态；提交胜者独占 outbox、归档和最终发布，客户端等待最终结果或 Binder 断连，不按等待时长取消任务。
 - 入口请求只能缩小工具能力，不能自行授权。Runtime 在开始 run 时裁剪配置，在每次浏览器、终端和设备工具执行前重新读取用户开关，并在 thinking 关闭时移除自定义请求体中的 reasoning/thinking 覆盖字段。
 - 设备工具分为直达工具、敏感读取工具和敏感操作工具，当前均默认开启。Runtime 在每次执行前重新读取用户开关；开关允许且参数符合工具 Schema 后即可执行，不再匹配用户原话，也不维护关键包、系统应用或 Settings key 黑名单。
 - 微信发送不提供专用工具、参数协议或额外策略层，完全使用通用 GUI 工具观察和操作微信界面。
@@ -70,6 +69,14 @@ Responses 请求固定使用 `stream:true`、`store:false`，不发送 `previous
 Chat Completions、Responses 与 Anthropic Messages 在 Provider 边界统一投影为带 `round + block index` 身份的正文、思考和工具块。Responses 额外使用 `item_id/output_index/content_index` 区分同一轮中的多个 output item；Chat Completions 在 delta 类型切换时创建新块；Anthropic 直接保留 `content_block.index`。正文、思考或工具类型一旦切换，上一段可见块立即定稿，后续同类型内容也不会跨过工具卡片回填到旧块。终态只在 Provider 的权威内容与已流式内容不一致时携带一次替换，不用整轮聚合正文覆盖最后一个块。
 
 服务端网页搜索是 Responses Provider 的独立开关，默认关闭。开启后请求只增加 `web_search` 托管工具；搜索开始和结束作为独立运行事件投影到 UI，不进入 Eta 本地工具执行器。最终回答中的 `url_citation` 会去重并转换为可点击 Markdown 引用；偏移无效时降级为回答末尾的来源列表。当前不接入 file search、code interpreter、Provider 托管 MCP 或其他托管工具。
+
+### 模型等待与重试
+
+模型流使用独立的 HTTP 配置：连接等待 15 秒、写入等待 30 秒、读取等待 5 分钟；读取限制针对等待新数据，不是整个任务的总时限。MCP、模型列表与下载继续沿用各自配置。模型 HTTP 客户端关闭底层连接自动重试，模型回合的有限重试统一由 Loop 编排。
+
+连接中断、超时、提前 EOF、暂时限流和部分服务端错误最多重试 3 次，依次等待 2、4、8 秒；每个成功的模型回合重新获得独立预算。认证、额度、计费、证书、协议格式等非暂时性失败不自动重试。重试等待可取消，并遵守暂停检查点；排队的 steering 留到当前回合及工具批次完成后处理。
+
+失败尝试不提交 assistant history，不执行其中的本地工具调用；前面完成的工具结果、当前回合的工具 schema 和截图在重试期间保持不变。重试使用新的展示轮次，失败的半截输出留在运行轨迹并标注重试，后续输出不会拼接到旧块；最终推理摘要不包含被替换的失败尝试。重试事件通过既有 IPC、checkpoint 和归档编码保存，恢复回放不会重新执行工具。若 Provider 已报告托管工具开始执行，本次失败不自动重试，避免重复触发服务端操作。
 
 ## MCP 工具
 
@@ -131,7 +138,7 @@ App 在发起请求前已经把当前用户消息写入会话 history，因此 R
 
 浮层在已完成结果后发起的 continuation 会在 handoff 中只携带本次新增的 prompt supplement，不累计复制旧补充。App 回到前台时 drain outbox，把该用户消息和增量 transcript 一起写回 history。
 
-自动重试、上下文压缩和跨 run、跨 Provider 的 opaque reasoning 状态尚未由当前 Loop 冒充实现；Responses output Items 只在当前 run 内回放，不能作为持久会话状态。
+上下文自动压缩和跨 run、跨 Provider 的 opaque reasoning 状态尚未实现；Responses output Items 只在当前 run 内回放，不能作为持久会话状态。
 
 ## Skills 安装边界
 

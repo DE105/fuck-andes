@@ -296,6 +296,7 @@ internal fun ChatMessageItem(
                             when (message.code) {
                                 SystemNoticeCode.Stopped -> R.string.system_notice_stopped
                                 SystemNoticeCode.EmptyResult -> R.string.system_notice_empty_result
+                                SystemNoticeCode.ModelRetry -> R.string.system_notice_model_retry
                                 SystemNoticeCode.RuntimeFailed -> R.string.system_notice_runtime_failed
                                 SystemNoticeCode.Interrupted -> R.string.system_notice_interrupted
                             },

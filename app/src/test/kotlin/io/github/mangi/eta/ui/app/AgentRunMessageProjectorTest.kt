@@ -16,6 +16,23 @@ import org.junit.Test
 
 class AgentRunMessageProjectorTest {
     @Test
+    fun retryKeepsFailedAttemptSeparateAndReplayClearsItsNotice() {
+        val projector = AgentRunMessageProjector { 1_000L }
+        val partial = projector.appendTextDelta("retry-run", 2, 0, "半截", emptyList())
+        val event = AgentEvent.ModelRetryScheduled(2, 1, 3, 2_000, "MODEL_TIMEOUT")
+        val retrying = projector.scheduleModelRetry("retry-run", event, partial)
+        assertEquals(-1, AgentRunMessageProjector.resultTargetIndex("retry-run", retrying))
+        assertEquals("assistant-retry-run-3-result", AgentRunMessageProjector.resultFallbackId("retry-run", retrying))
+        val repeated = projector.scheduleModelRetry("retry-run", event, retrying)
+        assertEquals(retrying, repeated)
+        val resumed = projector.appendTextDelta("retry-run", 3, 0, "完整回答", retrying)
+        assertEquals(listOf("半截", "完整回答"), resumed.filterIsInstance<AgentMessageUi>().map { it.content })
+        assertFalse(resumed.filterIsInstance<AgentMessageUi>().first().isStreaming)
+        assertEquals(SystemNoticeCode.ModelRetry, resumed.filterIsInstance<SystemNoticeMessageUi>().single().code)
+        assertTrue(projector.resetForReplay("retry-run", resumed).isEmpty())
+    }
+
+    @Test
     fun runCompletionFinalizesUnclosedBlocksAndUnknownToolWithoutChangingOtherRuns() {
         val projector = AgentRunMessageProjector(nowElapsedRealtime = { 1_000L })
         val runId = "run-final"
