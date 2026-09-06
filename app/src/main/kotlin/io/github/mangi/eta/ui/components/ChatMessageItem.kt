@@ -47,60 +47,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Backspace
-import androidx.compose.material.icons.automirrored.rounded.OpenInNew
-import androidx.compose.material.icons.automirrored.rounded.StickyNote2
-import androidx.compose.material.icons.rounded.AdsClick
-import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Build
-import androidx.compose.material.icons.rounded.CalendarMonth
-import androidx.compose.material.icons.rounded.ChatBubble
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.Contacts
 import androidx.compose.material.icons.rounded.ContentCopy
-import androidx.compose.material.icons.rounded.ContentPaste
-import androidx.compose.material.icons.rounded.ContentPasteGo
 import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.Description
-import androidx.compose.material.icons.rounded.DocumentScanner
-import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material.icons.rounded.FindReplace
-import androidx.compose.material.icons.rounded.Flare
-import androidx.compose.material.icons.rounded.FolderOpen
-import androidx.compose.material.icons.rounded.GppMaybe
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.Insights
-import androidx.compose.material.icons.rounded.Key
-import androidx.compose.material.icons.rounded.Keyboard
-import androidx.compose.material.icons.rounded.KeyboardCommandKey
 import androidx.compose.material.icons.rounded.Language
-import androidx.compose.material.icons.rounded.Layers
-import androidx.compose.material.icons.rounded.LocationOn
-import androidx.compose.material.icons.rounded.Lock
-import androidx.compose.material.icons.rounded.Mic
-import androidx.compose.material.icons.rounded.MonitorHeart
-import androidx.compose.material.icons.rounded.MyLocation
-import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.OpenWith
-import androidx.compose.material.icons.rounded.Phone
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Psychology
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.RocketLaunch
-import androidx.compose.material.icons.rounded.Schedule
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.ShoppingBag
-import androidx.compose.material.icons.rounded.Smartphone
-import androidx.compose.material.icons.rounded.SwapVert
-import androidx.compose.material.icons.rounded.Terminal
-import androidx.compose.material.icons.rounded.TouchApp
-import androidx.compose.material.icons.rounded.WebAsset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -130,6 +86,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.isTraversalGroup
@@ -437,8 +394,8 @@ internal fun AgentWorkProcess(
         ) {
             Icon(
                 imageVector = when {
-                    runningTool != null -> runningTool.toolName.toToolIcon()
-                    running -> Icons.Rounded.Flare
+                    runningTool != null -> iconForTool(runningTool.toolName)
+                    running -> ImageVector.vectorResource(R.drawable.ic_atom)
                     else -> Icons.Rounded.Build
                 },
                 contentDescription = null,
@@ -2161,7 +2118,7 @@ private fun ThinkingRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = Icons.Rounded.Flare,
+                imageVector = ImageVector.vectorResource(R.drawable.ic_atom),
                 contentDescription = null,
                 modifier = Modifier
                     .size(15.dp)
@@ -2305,7 +2262,7 @@ private fun ToolActivityInline(
         ) {
             // 工具图标与思考行的灯泡共用同一前导槽位，保证卡片内左边缘对齐。
             Icon(
-                imageVector = message.toolName.toToolIcon(),
+                imageVector = iconForTool(message.toolName),
                 contentDescription = null,
                 modifier = Modifier.size(15.dp),
                 tint = when (message.status) {
@@ -2721,7 +2678,7 @@ private fun ToolSummaryInline(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = tool.toToolIcon(),
+                    imageVector = iconForTool(tool),
                     contentDescription = null,
                     modifier = Modifier.size(12.dp),
                     tint = MiuixTheme.colorScheme.primary
@@ -2800,66 +2757,4 @@ private fun ToolActivityStatusUi.statusLabel(): String = when (this) {
     ToolActivityStatusUi.Success -> stringResource(R.string.tool_status_success)
     ToolActivityStatusUi.Failed -> stringResource(R.string.tool_status_failed)
     ToolActivityStatusUi.Unknown -> stringResource(R.string.tool_status_unknown)
-}
-
-@Composable
-private fun String.toToolIcon(): ImageVector = when (this) {
-    "observe_screen" -> Icons.Rounded.DocumentScanner
-    "tap", "tap_element" -> Icons.Rounded.AdsClick
-    "tap_area" -> Icons.Rounded.MyLocation
-    "long_press", "long_press_element" -> Icons.Rounded.TouchApp
-    "swipe" -> Icons.Rounded.OpenWith
-    "scroll", "scroll_element" -> Icons.Rounded.SwapVert
-    "paste_text" -> Icons.Rounded.ContentPasteGo
-    "get_clipboard", "set_clipboard" -> Icons.Rounded.ContentPaste
-    "input_text" -> Icons.Rounded.Keyboard
-    "replace_text" -> Icons.Rounded.FindReplace
-    "clear_text" -> Icons.AutoMirrored.Rounded.Backspace
-    "wait", "wait_for_text", "wait_for_package" -> Icons.Rounded.Schedule
-    "search_apps" -> Icons.Rounded.Search
-    "get_current_context" -> Icons.Rounded.LocationOn
-    "launch_app" -> Icons.Rounded.RocketLaunch
-    "open_uri" -> Icons.AutoMirrored.Rounded.OpenInNew
-    "browser_use" -> Icons.Rounded.Language
-    "memory_get", "memory_write" -> Icons.Rounded.Psychology
-    "press_key" -> Icons.Rounded.KeyboardCommandKey
-    "open_system_panel" -> Icons.Rounded.WebAsset
-    "read_image" -> Icons.Rounded.Image
-    "skills_list", "skills_read", "skills_read_resource",
-    "skills_list_curated", "skills_inspect_github", "skills_install_from_github",
-        -> Icons.Rounded.AutoAwesome
-    "set_alarm", "set_timer", "list_alarms", "list_active_timers" ->
-        Icons.Rounded.Alarm
-    "device_status", "network_info", "set_device_state", "get_device_environment" ->
-        Icons.Rounded.Smartphone
-    "media_control" -> Icons.Rounded.PlayArrow
-    "set_volume" -> Icons.Rounded.Settings
-    "top_memory_apps", "top_storage_apps" -> Icons.Rounded.Layers
-    "read_sms_code" -> Icons.Rounded.Key
-    "recent_notifications", "search_notification_history" -> Icons.Rounded.Notifications
-    "wifi_credentials" -> Icons.Rounded.Lock
-    "get_setting", "set_setting", "app_state_control" -> Icons.Rounded.GppMaybe
-    "get_logcat" -> Icons.Rounded.Description
-    "get_current_location", "search_saved_places" -> Icons.Rounded.LocationOn
-    "get_health_summary" -> Icons.Rounded.MonitorHeart
-    "recent_app_activity", "app_usage_summary" -> Icons.Rounded.Insights
-    "search_calendar_events" -> Icons.Rounded.CalendarMonth
-    "search_contacts" -> Icons.Rounded.Contacts
-    "search_call_history" -> Icons.Rounded.Phone
-    "search_messages" -> Icons.Rounded.ChatBubble
-    "search_media", "search_audio", "search_qq_chat_images", "search_wechat_chat_images" ->
-        Icons.Rounded.Image
-    "search_recordings", "search_coloros_recordings", "search_recording_summaries" ->
-        Icons.Rounded.Mic
-    "search_files" -> Icons.Rounded.FolderOpen
-    "search_downloads" -> Icons.Rounded.Download
-    "search_clipboard_history" -> Icons.Rounded.ContentPaste
-    "search_coloros_notes" -> Icons.AutoMirrored.Rounded.StickyNote2
-    "search_coloros_memories" -> Icons.Rounded.Psychology
-    "search_personal_orders" -> Icons.Rounded.ShoppingBag
-    "terminal", "run_command" -> Icons.Rounded.Terminal
-    "read_file" -> Icons.Rounded.Description
-    "write_file" -> Icons.Rounded.EditNote
-    "list_directory" -> Icons.Rounded.FolderOpen
-    else -> Icons.Rounded.Settings
 }
